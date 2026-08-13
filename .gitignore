@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+data/prem.db
+data/raw/
+data/backtests/
+data/ca_bundle.pem

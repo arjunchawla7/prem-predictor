@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prem Predictor — Model Performance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1420; --card:#1a2233; --txt:#e8ecf4; --dim:#8b94a8;
+          --h:#4f8ef7; --warn:#e8b33d; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font:15px/1.5 system-ui,sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid #2a3450; }
+  header a { color:var(--h); text-decoration:none; }
+  main { max-width:900px; margin:0 auto; padding:18px; }
+  .card { background:var(--card); border-radius:10px; padding:16px 18px;
+          margin-bottom:16px; overflow-x:auto; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { text-align:left; padding:5px 10px 5px 0; border-bottom:1px solid #2a3450; }
+  th { color:var(--dim); font-weight:500; }
+  .flag { color:var(--warn); font-size:13px; }
+  .good { color:#7fd6a4; } .bad { color:#e89a9a; }
+  .cnt { color:var(--dim); font-size:13px; }
+  .calbar { display:inline-block; height:9px; background:var(--h);
+            vertical-align:middle; border-radius:2px; }
+  .calbar.actual { background:#7fd6a4; }
+</style>
+</head>
+<body>
+<header><a href="/">← gameweek view</a> &nbsp; <strong>Model performance</strong></header>
+<main id="main">loading…</main>
+<script>
+fetch('/api/performance').then(r => r.json()).then(d => {
+  let html = `<div class="card">
+  <h2>What the model has actually earned</h2>
+  <p>All numbers below are from a walk-forward backtest of the full 2025-26
+  season (model refit weekly on past matches only, never shuffled). Uniform
+  guessing scores: accuracy 33%, Brier 0.667, log-loss 1.099. A typical
+  bookmaker sits around 53-55% accuracy — this model does not beat the
+  market and is not meant to.</p></div>`;
+
+  if (d.backtests.length) {
+    const base = d.backtests[0];
+    html += `<div class="card"><h2>Layer-by-layer backtest (2025-26)</h2>
+    <table><tr><th>variant</th><th>accuracy</th><th>Brier ↓</th>
+    <th>log-loss ↓</th><th>verdict vs Layer 1</th></tr>` +
+    d.backtests.map((b, i) => {
+      let verdict = '—';
+      if (i > 0) {
+        const dl = b.logloss - base.logloss;
+        verdict = Math.abs(dl) < 0.003
+          ? `<span class="flag">no real improvement (Δlogloss ${dl >= 0 ? '+' : ''}${dl.toFixed(4)}) — kept in code, not earning its keep</span>`
+          : dl < 0 ? `<span class="good">improves (Δ ${dl.toFixed(4)})</span>`
+                   : `<span class="bad">worse (Δ +${dl.toFixed(4)})</span>`;
+      }
+      return `<tr><td>${b.label}</td><td>${(100 * b.accuracy).toFixed(1)}%</td>
+        <td>${b.brier.toFixed(4)}</td><td>${b.logloss.toFixed(4)}</td>
+        <td>${verdict}</td></tr>`;
+    }).join('') + '</table></div>';
+
+    html += `<div class="card"><h2>Calibration — home-win probability
+    (${base.label})</h2>
+    <table><tr><th>predicted bucket</th><th>n</th><th>predicted</th>
+    <th>actual</th><th></th></tr>` +
+    base.calibration.map(c => `<tr><td>${c.bucket}</td><td>${c.n}</td>
+      <td>${(100 * c.predicted).toFixed(0)}%</td>
+      <td>${(100 * c.actual).toFixed(0)}%</td>
+      <td><span class="calbar" style="width:${150 * c.predicted}px"></span><br>
+      <span class="calbar actual" style="width:${150 * c.actual}px"></span></td>
+      </tr>`).join('') +
+    `</table><p class="cnt">blue = predicted frequency, green = actual.
+    Matching lengths = well calibrated.</p></div>`;
+  }
+
+  html += `<div class="card"><h2>Provisional vs final predictions</h2>`;
+  if (d.prov_vs_final) {
+    html += `<p>${d.prov_vs_final.fixtures} fixtures have both a provisional
+    (ideal XI) and final (confirmed XI) prediction. Average home-win
+    probability shift: <strong>${(100 * d.prov_vs_final.avg_home_prob_shift)
+    .toFixed(1)} points</strong>. If this stays near zero over the season,
+    the two-stage rebuild isn't earning its complexity.</p>`;
+  } else {
+    html += `<p class="cnt">No fixture has both yet — accumulates once the
+    season starts and Mode 2 rebuilds run.</p>`;
+  }
+  html += '</div>';
+
+  html += `<div class="card"><h2>Known limitations (deliberately not hidden)</h2>
+  <ul>
+   <li>Lineup/fatigue/travel weighting did <strong>not</strong> improve
+   calibration on 2025-26; kept for what-if analysis, flagged above.</li>
+   <li>Layer 2 style adjustment: marginal (Δlogloss ≈ −0.001), within noise.</li>
+   <li>Fatigue uses league minutes only — European/cup midweek games are
+   invisible to it.</li>
+   <li>No true defensive stats (tackles etc.); defender ratings proxy from
+   team goals conceded + xG buildup.</li>
+   <li>Promoted teams start on a "weakest-3 average" prior until they build
+   top-flight history.</li>
+  </ul></div>`;
+
+  if (d.pull_log.length) {
+    html += `<div class="card"><h2>Recent data pulls</h2><table>
+    <tr><th>time (UTC)</th><th>source</th><th>ok</th><th>detail</th></tr>` +
+    d.pull_log.map(l => `<tr><td>${l.ts.slice(0, 16)}</td><td>${l.source}</td>
+      <td>${l.ok ? '<span class="good">ok</span>'
+                 : '<span class="bad">fail</span>'}</td>
+      <td class="cnt">${l.detail || ''}</td></tr>`).join('') + '</table></div>';
+  }
+  document.getElementById('main').innerHTML = html;
+});
+</script>
+</body>
+</html>
