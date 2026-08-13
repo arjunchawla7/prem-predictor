@@ -29,6 +29,7 @@ def main():
     run("load_matches.py")
     run("pull_understat.py", "--refresh-league")
     run("pull_fixtures.py")
+    run("pull_squads.py")
     run("pull_odds.py")
 
     from backend.db import connect

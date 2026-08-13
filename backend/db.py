@@ -110,6 +110,14 @@ CREATE TABLE IF NOT EXISTS predictions (
     partial_data INTEGER DEFAULT 0      -- 1 = prediction from incomplete data
 );
 
+CREATE TABLE IF NOT EXISTS transfers (
+    id INTEGER PRIMARY KEY,
+    player_id INTEGER NOT NULL REFERENCES players(id),
+    detected_at TEXT NOT NULL,
+    from_team_id INTEGER REFERENCES teams(id),   -- NULL = new to the league
+    to_team_id INTEGER REFERENCES teams(id)      -- NULL = left the league
+);
+
 CREATE TABLE IF NOT EXISTS market_odds (
     fixture_id INTEGER NOT NULL REFERENCES fixtures(id),
     ts TEXT NOT NULL,                   -- when pulled
@@ -134,9 +142,18 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     # additive migrations for DBs created before a column existed
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(fixtures)")}
-    if "pulse_id" not in cols:
-        conn.execute("ALTER TABLE fixtures ADD COLUMN pulse_id INTEGER")
+    def add_col(table, col, decl):
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if col not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+    add_col("fixtures", "pulse_id", "INTEGER")
+    add_col("teams", "crest_url", "TEXT")
+    add_col("teams", "pulse_id", "INTEGER")
+    add_col("players", "pulse_id", "INTEGER")
+    add_col("players", "shirt_num", "INTEGER")
+    add_col("players", "in_current_squad", "INTEGER DEFAULT 0")
+    add_col("players", "detail_pos", "TEXT")   # e.g. ST / RW / CDM / CB / LB
+    add_col("players", "opta_code", "TEXT")    # 'p154561', keys the photo CDN
     return conn
 
 

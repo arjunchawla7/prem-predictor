@@ -5,39 +5,60 @@
 <title>Prem Predictor — Model Performance</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { --bg:#0f1420; --card:#1a2233; --txt:#e8ecf4; --dim:#8b94a8;
-          --h:#4f8ef7; --warn:#e8b33d; }
-  body { margin:0; background:var(--bg); color:var(--txt);
-         font:15px/1.5 system-ui,sans-serif; }
-  header { padding:14px 20px; border-bottom:1px solid #2a3450; }
-  header a { color:var(--h); text-decoration:none; }
-  main { max-width:900px; margin:0 auto; padding:18px; }
-  .card { background:var(--card); border-radius:10px; padding:16px 18px;
-          margin-bottom:16px; overflow-x:auto; }
-  h2 { font-size:16px; margin:0 0 10px; }
-  table { border-collapse:collapse; width:100%; font-size:14px; }
-  th,td { text-align:left; padding:5px 10px 5px 0; border-bottom:1px solid #2a3450; }
-  th { color:var(--dim); font-weight:500; }
+  :root {
+    --bg:#0b0e14; --card:#141a24; --line:#232b38; --ink:#e8ecf4;
+    --ink2:#a5aec0; --ink3:#67718a; --home:#5b8ef8; --good:#5ad19a;
+    --bad:#f87171; --warn:#e8b33d; --warn-t:#2a2410;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.55 "Inter", system-ui, sans-serif; }
+  header { background:var(--card); border-bottom:1px solid var(--line);
+           padding:12px 20px; position:sticky; top:0; }
+  .hwrap { max-width:900px; margin:0 auto; display:flex; gap:16px;
+           align-items:baseline; }
+  .logo { font-weight:800; font-size:17px; letter-spacing:-.3px; }
+  .logo span { color:var(--home); }
+  header a { color:var(--ink2); text-decoration:none; font-weight:600;
+             font-size:13px; }
+  header a:hover { color:var(--ink); }
+  main { max-width:900px; margin:18px auto 40px; padding:0 20px; }
+  .card { background:var(--card); border:1px solid var(--line);
+          border-radius:12px; box-shadow:var(--shadow);
+          padding:16px 18px; margin-bottom:14px; overflow-x:auto; }
+  h2 { font-size:15px; margin:0 0 10px; letter-spacing:-.2px; }
+  p { color:var(--ink2); }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  th,td { text-align:left; padding:6px 12px 6px 0;
+          border-bottom:1px solid var(--line); }
+  th { color:var(--ink3); font-weight:600; font-size:12px;
+       text-transform:uppercase; letter-spacing:.4px; }
   .flag { color:var(--warn); font-size:13px; }
-  .good { color:#7fd6a4; } .bad { color:#e89a9a; }
-  .cnt { color:var(--dim); font-size:13px; }
-  .calbar { display:inline-block; height:9px; background:var(--h);
+  .good { color:var(--good); font-weight:600; }
+  .bad { color:var(--bad); font-weight:600; }
+  .cnt { color:var(--ink3); font-size:12.5px; }
+  .calbar { display:inline-block; height:9px; background:var(--home);
             vertical-align:middle; border-radius:2px; }
-  .calbar.actual { background:#7fd6a4; }
+  .calbar.actual { background:#2eb8a5; }
+  ul { color:var(--ink2); }
 </style>
 </head>
 <body>
-<header><a href="/">← gameweek view</a> &nbsp; <strong>Model performance</strong></header>
+<header><div class="hwrap">
+  <div class="logo">Prem<span>Predictor</span></div>
+  <a href="/">← gameweek view</a>
+</div></header>
 <main id="main">loading…</main>
 <script>
 fetch('/api/performance').then(r => r.json()).then(d => {
   let html = `<div class="card">
   <h2>What the model has actually earned</h2>
-  <p>All numbers below are from a walk-forward backtest of the full 2025-26
-  season (model refit weekly on past matches only, never shuffled). Uniform
-  guessing scores: accuracy 33%, Brier 0.667, log-loss 1.099. A typical
-  bookmaker sits around 53-55% accuracy — this model does not beat the
-  market and is not meant to.</p></div>`;
+  <p>All numbers are from a walk-forward backtest of the full 2025-26 season
+  (model refit weekly on past matches only, never shuffled). Uniform guessing
+  scores: accuracy 33%, Brier 0.667, log-loss 1.099. A typical bookmaker sits
+  around 53-55% accuracy — this model does not beat the market and is not
+  meant to.</p></div>`;
 
   if (d.backtests.length) {
     const base = d.backtests[0];
@@ -49,7 +70,7 @@ fetch('/api/performance').then(r => r.json()).then(d => {
       if (i > 0) {
         const dl = b.logloss - base.logloss;
         verdict = Math.abs(dl) < 0.003
-          ? `<span class="flag">no real improvement (Δlogloss ${dl >= 0 ? '+' : ''}${dl.toFixed(4)}) — kept in code, not earning its keep</span>`
+          ? `<span class="flag">no real improvement (Δlogloss ${dl >= 0 ? '+' : ''}${dl.toFixed(4)}) — kept, not earning its keep</span>`
           : dl < 0 ? `<span class="good">improves (Δ ${dl.toFixed(4)})</span>`
                    : `<span class="bad">worse (Δ +${dl.toFixed(4)})</span>`;
       }
@@ -68,7 +89,7 @@ fetch('/api/performance').then(r => r.json()).then(d => {
       <td><span class="calbar" style="width:${150 * c.predicted}px"></span><br>
       <span class="calbar actual" style="width:${150 * c.actual}px"></span></td>
       </tr>`).join('') +
-    `</table><p class="cnt">blue = predicted frequency, green = actual.
+    `</table><p class="cnt">blue = predicted frequency, teal = actual.
     Matching lengths = well calibrated.</p></div>`;
   }
 
@@ -77,8 +98,8 @@ fetch('/api/performance').then(r => r.json()).then(d => {
     html += `<p>${d.prov_vs_final.fixtures} fixtures have both a provisional
     (ideal XI) and final (confirmed XI) prediction. Average home-win
     probability shift: <strong>${(100 * d.prov_vs_final.avg_home_prob_shift)
-    .toFixed(1)} points</strong>. If this stays near zero over the season,
-    the two-stage rebuild isn't earning its complexity.</p>`;
+    .toFixed(1)} points</strong>. If this stays near zero over the season, the
+    two-stage rebuild isn't earning its complexity.</p>`;
   } else {
     html += `<p class="cnt">No fixture has both yet — accumulates once the
     season starts and Mode 2 rebuilds run.</p>`;
@@ -88,12 +109,11 @@ fetch('/api/performance').then(r => r.json()).then(d => {
   html += `<div class="card"><h2>Known limitations (deliberately not hidden)</h2>
   <ul>
    <li>Lineup/fatigue/travel weighting did <strong>not</strong> improve
-   calibration on 2025-26; kept for what-if analysis, flagged above.</li>
+   calibration on 2025-26; kept for what-if analysis.</li>
    <li>Layer 2 style adjustment: marginal (Δlogloss ≈ −0.001), within noise.</li>
-   <li>Fatigue uses league minutes only — European/cup midweek games are
-   invisible to it.</li>
-   <li>No true defensive stats (tackles etc.); defender ratings proxy from
-   team goals conceded + xG buildup.</li>
+   <li>Fatigue uses league minutes only — European/cup midweeks are invisible.</li>
+   <li>No true defensive stats; defender ratings proxy from team goals
+   conceded + xG buildup.</li>
    <li>Promoted teams start on a "weakest-3 average" prior until they build
    top-flight history.</li>
   </ul></div>`;

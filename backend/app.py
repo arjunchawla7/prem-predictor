@@ -67,17 +67,29 @@ def active_prediction(conn, fixture):
     return None
 
 
+PHOTO = ("https://resources.premierleague.com/premierleague/photos/players/"
+         "{size}/{opta}.png")
+
+
+def photo_url(opta_code, size="40x40"):
+    return PHOTO.format(size=size, opta=opta_code) if opta_code else None
+
+
 def lineup_detail(conn, book, lineup_json, as_of):
     if not lineup_json:
         return None
     out = []
     for pid in json.loads(lineup_json):
-        p = conn.execute("SELECT name, position FROM players WHERE id=?",
-                         (pid,)).fetchone()
+        p = conn.execute(
+            """SELECT name, position, detail_pos, opta_code, shirt_num
+               FROM players WHERE id=?""", (pid,)).fetchone()
         r = book.by_id.get(pid)
         out.append({
             "id": pid, "name": p["name"] if p else f"#{pid}",
             "position": (p["position"] if p else None) or "?",
+            "detail_pos": p["detail_pos"] if p else None,
+            "shirt": p["shirt_num"] if p else None,
+            "photo": photo_url(p["opta_code"]) if p else None,
             "tier": r["tier"] if r else 3,
             "provisional": bool(r["provisional"]) if r else True,
             "fatigue": round(player_fatigue(conn, pid, as_of)),
@@ -90,7 +102,8 @@ def api_gameweek(gw):
     conn = db()
     book = predictor().book
     fixtures = conn.execute(
-        """SELECT f.*, h.name hn, a.name an, h.id hid, a.id aid
+        """SELECT f.*, h.name hn, a.name an, h.id hid, a.id aid,
+                  h.crest_url hcrest, a.crest_url acrest
            FROM fixtures f
            JOIN teams h ON h.id=f.home_team_id
            JOIN teams a ON a.id=f.away_team_id
@@ -104,8 +117,8 @@ def api_gameweek(gw):
                ORDER BY ts DESC LIMIT 1""", (f["id"],)).fetchone()
         item = {
             "id": f["id"], "date": f["date"], "gameweek": f["gameweek"],
-            "home": {"id": f["hid"], "name": f["hn"]},
-            "away": {"id": f["aid"], "name": f["an"]},
+            "home": {"id": f["hid"], "name": f["hn"], "crest": f["hcrest"]},
+            "away": {"id": f["aid"], "name": f["an"], "crest": f["acrest"]},
             "status": f["status"], "lineup_mode": f["lineup_mode"],
             "prediction": None, "odds": None,
         }
@@ -143,22 +156,103 @@ def api_gameweek(gw):
 
 @app.route("/api/squad/<int:team_id>")
 def api_squad(team_id):
+    """Registered current squad (pull_squads.py); falls back to the
+    minutes-based pool if the squad hasn't been synced."""
     conn = db()
     book = predictor().book
     rows = conn.execute(
-        """SELECT DISTINCT p.id, p.name, p.position,
-                  COALESCE(SUM(pmm.minutes), 0) AS mins
-           FROM players p
-           LEFT JOIN player_match_minutes pmm ON pmm.player_id=p.id
-                AND pmm.team_id=?
-           WHERE p.team_id=? OR pmm.player_id IS NOT NULL
-           GROUP BY p.id HAVING p.team_id=? OR mins > 0
-           ORDER BY mins DESC""", (team_id, team_id, team_id)).fetchall()
+        """SELECT p.id, p.name, p.position, p.shirt_num, p.detail_pos,
+                  p.opta_code, p.understat_id IS NULL AS is_new,
+                  COALESCE((SELECT SUM(minutes) FROM player_match_minutes
+                            WHERE player_id=p.id), 0) AS mins
+           FROM players p WHERE p.team_id=? AND p.in_current_squad=1
+           ORDER BY CASE p.position WHEN 'GK' THEN 0 WHEN 'DEF' THEN 1
+                    WHEN 'MID' THEN 2 WHEN 'FWD' THEN 3 ELSE 4 END,
+                    mins DESC""", (team_id,)).fetchall()
+    if not rows:
+        rows = conn.execute(
+            """SELECT DISTINCT p.id, p.name, p.position, NULL AS shirt_num,
+                      NULL AS detail_pos, NULL AS opta_code,
+                      0 AS is_new, COALESCE(SUM(pmm.minutes), 0) AS mins
+               FROM players p
+               LEFT JOIN player_match_minutes pmm ON pmm.player_id=p.id
+                    AND pmm.team_id=?
+               WHERE p.team_id=? OR pmm.player_id IS NOT NULL
+               GROUP BY p.id HAVING p.team_id=? OR mins > 0
+               ORDER BY mins DESC""", (team_id, team_id, team_id)).fetchall()
     return jsonify([{
         "id": r["id"], "name": r["name"], "position": r["position"] or "?",
-        "minutes": r["mins"],
+        "detail_pos": r["detail_pos"], "photo": photo_url(r["opta_code"]),
+        "minutes": r["mins"], "shirt": r["shirt_num"],
+        "new_signing": bool(r["is_new"]),
         "tier": book.by_id[r["id"]]["tier"] if r["id"] in book.by_id else 3,
+        "provisional": (book.by_id[r["id"]]["provisional"]
+                        if r["id"] in book.by_id else True),
     } for r in rows])
+
+
+@app.route("/match")
+def match_page():
+    return send_from_directory(app.static_folder, "match.html")
+
+
+@app.route("/api/fixture/<int:fid>")
+def api_fixture_detail(fid):
+    """Everything the match page needs: teams, prediction incl. full
+    scoreline grid, lineups grouped by position, odds, transfers in."""
+    conn = db()
+    book = predictor().book
+    f = conn.execute(
+        """SELECT f.*, h.name hn, a.name an, h.crest_url hc, a.crest_url ac,
+                  h.id hid, a.id aid
+           FROM fixtures f JOIN teams h ON h.id=f.home_team_id
+           JOIN teams a ON a.id=f.away_team_id WHERE f.id=?""",
+        (fid,)).fetchone()
+    if not f:
+        return jsonify({"error": "no such fixture"}), 404
+    pred = active_prediction(conn, f)
+    history = [dict(r) for r in conn.execute(
+        """SELECT tag, created_at, p_home, p_draw, p_away, home_xg, away_xg
+           FROM predictions WHERE fixture_id=? ORDER BY created_at""", (fid,))]
+    odds = conn.execute(
+        "SELECT * FROM market_odds WHERE fixture_id=? ORDER BY ts DESC LIMIT 1",
+        (fid,)).fetchone()
+    recent_transfers = {}
+    for side, tid in (("home", f["hid"]), ("away", f["aid"])):
+        recent_transfers[side] = [dict(r) for r in conn.execute(
+            """SELECT p.name, ft.name AS from_team
+               FROM transfers tr JOIN players p ON p.id=tr.player_id
+               LEFT JOIN teams ft ON ft.id=tr.from_team_id
+               WHERE tr.to_team_id=? AND tr.from_team_id IS NOT NULL
+               ORDER BY tr.detected_at DESC LIMIT 8""", (tid,))]
+    out = {
+        "id": f["id"], "date": f["date"], "gameweek": f["gameweek"],
+        "status": f["status"], "lineup_mode": f["lineup_mode"],
+        "home": {"id": f["hid"], "name": f["hn"], "crest": f["hc"]},
+        "away": {"id": f["aid"], "name": f["an"], "crest": f["ac"]},
+        "prediction": None, "history": history, "odds": None,
+        "transfers_in": recent_transfers,
+    }
+    if pred:
+        as_of = f["date"] or ""
+        out["prediction"] = {
+            "tag": pred["tag"], "created_at": pred["created_at"],
+            "p_home": pred["p_home"], "p_draw": pred["p_draw"],
+            "p_away": pred["p_away"], "home_xg": pred["home_xg"],
+            "away_xg": pred["away_xg"],
+            "grid": json.loads(pred["score_grid"]),
+            "notes": pred["notes"], "partial_data": bool(pred["partial_data"]),
+            "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
+            "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
+        }
+    if odds:
+        inv = [1 / odds["odds_home"], 1 / odds["odds_draw"], 1 / odds["odds_away"]]
+        s = sum(inv)
+        out["odds"] = {"bookmaker": odds["bookmaker"],
+                       "decimal": [odds["odds_home"], odds["odds_draw"],
+                                   odds["odds_away"]],
+                       "implied": [round(x / s, 4) for x in inv]}
+    return jsonify(out)
 
 
 @app.route("/api/fixture/<int:fid>/manual", methods=["POST"])

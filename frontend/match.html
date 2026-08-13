@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Match — Prem Predictor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg:#0b0e14; --card:#141a24; --line:#232b38; --line2:#31394a;
+    --ink:#e8ecf4; --ink2:#a5aec0; --ink3:#67718a;
+    --home:#5b8ef8; --draw:#0d9488; --away:#ea580c;
+    --home-t:#16233f; --draw-t:#0e2723; --away-t:#331a0c;
+    --warn:#e8b33d; --warn-t:#2a2410; --r:12px;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 "Inter", system-ui, sans-serif; }
+  a { color:var(--home); text-decoration:none; }
+  header { background:var(--card); border-bottom:1px solid var(--line);
+           padding:12px 20px; position:sticky; top:0; z-index:5; }
+  .hwrap { max-width:860px; margin:0 auto; display:flex; gap:16px;
+           align-items:baseline; }
+  .logo { font-weight:800; font-size:17px; letter-spacing:-.3px; }
+  .logo span { color:var(--home); }
+  header a.back { color:var(--ink2); font-weight:600; font-size:13px; }
+  main { max-width:860px; margin:16px auto 48px; padding:0 20px; }
+  .card { background:var(--card); border:1px solid var(--line);
+          border-radius:var(--r); box-shadow:var(--shadow);
+          padding:16px 18px; margin-bottom:14px; }
+  h2 { font-size:14px; margin:0 0 12px; color:var(--ink2);
+       text-transform:uppercase; letter-spacing:.6px; font-weight:700; }
+
+  .hero { text-align:center; padding:22px 18px 18px; }
+  .hero .when { font-size:12.5px; color:var(--ink3); font-weight:500; }
+  .hero .mode { display:inline-block; font-size:11px; font-weight:700;
+                letter-spacing:.5px; text-transform:uppercase;
+                padding:3px 10px; border-radius:999px; margin-left:8px; }
+  .mode.provisional { background:#1d2340; color:#9db2f5; }
+  .mode.final { background:#0e2a1e; color:#5ad19a; }
+  .mode.manual { background:#2a2410; color:#e8c064; }
+  .mode.none { background:#1a2029; color:var(--ink3); }
+  .duel { display:grid; grid-template-columns:1fr auto 1fr; gap:12px;
+          align-items:center; margin-top:14px; }
+  .side img { width:64px; height:64px; object-fit:contain; }
+  .side .nm { font-weight:800; font-size:17px; letter-spacing:-.3px;
+              margin-top:6px; }
+  .side .xg { font-size:12.5px; color:var(--ink3); }
+  .duel .mid { font-size:13px; color:var(--ink3); font-weight:600; }
+  .prices { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
+            max-width:520px; margin:18px auto 0; }
+  .price { border-radius:10px; padding:10px 6px; border:1px solid var(--line); }
+  .price .lbl { font-size:10.5px; font-weight:600; color:var(--ink2);
+                white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .price .val { font-size:24px; font-weight:800; letter-spacing:-.6px; }
+  .price .mkt { font-size:11px; color:var(--ink3); }
+  .price.h { background:var(--home-t); } .price.h .val { color:var(--home); }
+  .price.d { background:var(--draw-t); } .price.d .val { color:#2eb8a5; }
+  .price.a { background:var(--away-t); } .price.a .val { color:#f97b3d; }
+  .warnrow { margin:14px auto 0; max-width:520px; background:var(--warn-t);
+             color:var(--warn); border-radius:8px; padding:7px 12px;
+             font-size:12.5px; }
+
+  .gridwrap { overflow-x:auto; }
+  table.heat { border-collapse:separate; border-spacing:2px; margin:0 auto; }
+  table.heat td, table.heat th { width:52px; height:36px; text-align:center;
+    font-size:12px; border-radius:4px; }
+  table.heat th { color:var(--ink3); font-weight:600; font-size:11.5px; }
+  table.heat td { color:var(--ink2); }
+  .axis { color:var(--ink3); font-size:11.5px; text-align:center;
+          margin-top:6px; }
+
+  .xi2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:640px){ .xi2 { grid-template-columns:1fr; } }
+  .posgrp { margin:8px 0 2px; font-size:11px; font-weight:700;
+            color:var(--ink3); letter-spacing:.5px; }
+  .pl { display:flex; justify-content:space-between; gap:8px;
+        padding:3px 0; border-bottom:1px dashed var(--line); font-size:13px;
+        align-items:center; }
+  .face { width:24px; height:24px; border-radius:50%; object-fit:cover;
+          background:var(--line); }
+  .pl .num { display:inline-block; width:24px; color:var(--ink3);
+             font-size:11.5px; }
+  .tier { font-weight:700; color:var(--ink2); }
+  .fat-hi { color:#f87171; font-weight:700; }
+  .fat-md { color:var(--warn); font-weight:600; }
+  .fat-lo { color:var(--ink3); }
+  .provtag { color:var(--ink3); font-style:italic; font-size:11px; }
+  .footnote { font-size:11.5px; color:var(--ink3); margin-top:10px; }
+
+  table.plain { border-collapse:collapse; width:100%; font-size:13px; }
+  .plain th, .plain td { text-align:left; padding:5px 10px 5px 0;
+    border-bottom:1px solid var(--line); }
+  .plain th { color:var(--ink3); font-weight:600; font-size:11.5px;
+              text-transform:uppercase; letter-spacing:.4px; }
+  .tr-list { font-size:13px; color:var(--ink2); }
+  .tr-list div { padding:2px 0; }
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="logo">Prem<span>Predictor</span></div>
+  <a class="back" href="/">← all fixtures</a>
+</div></header>
+<main id="main">loading…</main>
+<script>
+const pct = x => Math.round(100 * x) + '%';
+const fid = new URLSearchParams(location.search).get('id');
+
+function fatCls(f) { return f >= 70 ? 'fat-hi' : f >= 50 ? 'fat-md' : 'fat-lo'; }
+function kickoff(d) {
+  if (!d) return 'kickoff TBC';
+  return new Date(d.replace(' ', 'T') + 'Z').toLocaleString([], {
+    weekday: 'long', day: 'numeric', month: 'long',
+    hour: '2-digit', minute: '2-digit' });
+}
+function crest(t, size) {
+  return t.crest ? `<img src="${t.crest}" alt="" style="width:${size}px;height:${size}px">`
+                 : `<div style="width:${size}px;height:${size}px"></div>`;
+}
+// sequential ramp dark surface -> home blue (magnitude only, one hue)
+function heatColor(p, max) {
+  const t = max > 0 ? Math.pow(p / max, .6) : 0;
+  const mix = (a, b) => Math.round(a + (b - a) * t);
+  return `rgb(${mix(20, 91)},${mix(26, 142)},${mix(36, 248)})`;
+}
+function xiSide(name, lineup) {
+  if (!lineup) return `<div><strong>${name}</strong>
+    <div class="provtag">no lineup — season-average rating used</div></div>`;
+  const groups = { GK: [], DEF: [], MID: [], FWD: [], '?': [] };
+  lineup.forEach(p => (groups[p.position] || groups['?']).push(p));
+  let h = `<div><strong>${name}</strong>`;
+  for (const g of ['GK', 'DEF', 'MID', 'FWD', '?']) {
+    if (!groups[g].length) continue;
+    h += `<div class="posgrp">${g === '?' ? 'OTHER' : g}</div>` +
+      groups[g].map(p => `<div class="pl">
+        <span style="display:flex;align-items:center;gap:8px">` +
+        (p.photo ? `<img class="face" src="${p.photo}" loading="lazy"
+           onerror="this.style.visibility='hidden'">` : '<span class="face"></span>') +
+        `<span class="num">${p.detail_pos || ''}</span>${p.name}
+         ${p.provisional ? ' <span class="provtag">prov</span>' : ''}</span>
+        <span><span class="tier">T${p.tier}</span>
+        <span class="${fatCls(p.fatigue)}">F${p.fatigue}</span></span>
+      </div>`).join('');
+  }
+  return h + '</div>';
+}
+
+fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
+  if (d.error) { document.getElementById('main').textContent = d.error; return; }
+  const p = d.prediction;
+  const mode = d.lineup_mode === 'manual' ? 'manual' : (p ? p.tag : 'none');
+  const mkt = d.odds ? d.odds.implied : null;
+  document.title = `${d.home.name} vs ${d.away.name} — Prem Predictor`;
+
+  let html = `<div class="card hero">
+    <span class="when">Gameweek ${d.gameweek} · ${kickoff(d.date)}</span>
+    <span class="mode ${mode}">${mode}</span>
+    <div class="duel">
+      <div class="side">${crest(d.home, 64)}<div class="nm">${d.home.name}</div>
+        ${p ? `<div class="xg">xG ${p.home_xg.toFixed(2)}</div>` : ''}</div>
+      <div class="mid">vs</div>
+      <div class="side">${crest(d.away, 64)}<div class="nm">${d.away.name}</div>
+        ${p ? `<div class="xg">xG ${p.away_xg.toFixed(2)}</div>` : ''}</div>
+    </div>`;
+  if (p) {
+    html += `<div class="prices">
+      <div class="price h"><div class="lbl">${d.home.name}</div>
+        <div class="val">${pct(p.p_home)}</div>
+        ${mkt ? `<div class="mkt">market ${pct(mkt[0])}</div>` : ''}</div>
+      <div class="price d"><div class="lbl">Draw</div>
+        <div class="val">${pct(p.p_draw)}</div>
+        ${mkt ? `<div class="mkt">market ${pct(mkt[1])}</div>` : ''}</div>
+      <div class="price a"><div class="lbl">${d.away.name}</div>
+        <div class="val">${pct(p.p_away)}</div>
+        ${mkt ? `<div class="mkt">market ${pct(mkt[2])}</div>` : ''}</div>
+    </div>`;
+    if (p.partial_data || p.notes)
+      html += `<div class="warnrow">${p.partial_data ? '⚠ partial data. ' : ''}
+        ${p.notes || ''}</div>`;
+  } else {
+    html += `<p class="provtag">no prediction yet — run refresh_week.py</p>`;
+  }
+  html += `</div>`;
+
+  if (p) {
+    const N = 6;
+    let max = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+      max = Math.max(max, p.grid[i][j]);
+    html += `<div class="card"><h2>Scoreline probabilities</h2>
+    <div class="gridwrap"><table class="heat">
+      <tr><th></th>${[...Array(N).keys()].map(j =>
+        `<th>${j}</th>`).join('')}</tr>` +
+      [...Array(N).keys()].map(i => `<tr><th>${i}</th>` +
+        [...Array(N).keys()].map(j => {
+          const v = p.grid[i][j];
+          return `<td style="background:${heatColor(v, max)};
+            ${v === max ? 'font-weight:800;color:#fff' : ''}"
+            title="${d.home.name} ${i}-${j} ${d.away.name}">
+            ${(100 * v).toFixed(1)}</td>`;
+        }).join('') + '</tr>').join('') +
+    `</table>
+    <div class="axis">rows = ${d.home.name} goals · columns = ${d.away.name}
+    goals · cell = % chance (0-5 shown)</div></div></div>`;
+
+    html += `<div class="card"><h2>Predicted lineups</h2><div class="xi2">
+      ${xiSide(d.home.name, p.home_lineup)}
+      ${xiSide(d.away.name, p.away_lineup)}</div>
+      <div class="footnote">T = rating tier (5 best, last-season data) ·
+      F = fatigue 0-100 (league minutes only) · prov = provisional
+      league-average rating</div></div>`;
+  }
+
+  const ti = d.transfers_in;
+  if (ti && (ti.home.length || ti.away.length)) {
+    html += `<div class="card"><h2>Summer arrivals</h2><div class="xi2">
+      <div><strong>${d.home.name}</strong><div class="tr-list">
+        ${ti.home.map(t => `<div>${t.name} <span class="provtag">from
+        ${t.from_team || 'outside PL'}</span></div>`).join('') || '<div class="provtag">none tracked</div>'}
+      </div></div>
+      <div><strong>${d.away.name}</strong><div class="tr-list">
+        ${ti.away.map(t => `<div>${t.name} <span class="provtag">from
+        ${t.from_team || 'outside PL'}</span></div>`).join('') || '<div class="provtag">none tracked</div>'}
+      </div></div></div>
+      <div class="footnote">detected from registered-squad changes vs last
+      season's data (players arriving from outside the PL appear as new
+      signings with provisional ratings)</div></div>`;
+  }
+
+  if (d.history.length > 1) {
+    html += `<div class="card"><h2>Prediction history</h2>
+    <table class="plain"><tr><th>when (UTC)</th><th>type</th><th>home</th>
+    <th>draw</th><th>away</th><th>xG</th></tr>` +
+    d.history.map(h => `<tr><td>${h.created_at.slice(0, 16).replace('T', ' ')}</td>
+      <td>${h.tag}</td><td>${pct(h.p_home)}</td><td>${pct(h.p_draw)}</td>
+      <td>${pct(h.p_away)}</td>
+      <td>${h.home_xg.toFixed(2)}–${h.away_xg.toFixed(2)}</td></tr>`).join('') +
+    '</table></div>';
+  }
+  document.getElementById('main').innerHTML = html;
+});
+</script>
+</body>
+</html>

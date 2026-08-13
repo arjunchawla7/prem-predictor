@@ -31,9 +31,7 @@ HTTP.headers["User-Agent"] = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 HTTP.headers["Origin"] = "https://www.premierleague.com"
 
 
-def norm(name: str) -> str:
-    s = unicodedata.normalize("NFKD", name)
-    return "".join(c for c in s if not unicodedata.combining(c)).lower().strip()
+from pull_squads import norm  # shared accent-folding name normaliser
 
 
 def match_players(conn, team_id, pulse_names):

@@ -65,35 +65,48 @@ def lineup_multiplier(conn, book, team_id, starter_ids, as_of_date,
 def ideal_xi(conn, team_id, season, as_of_date, last_n=6):
     """Mode 1 'most-used lineup': most-started players in the team's last
     `last_n` matches before as_of_date, slotted per position group
-    (1 GK, then DEF/MID/FWD by start counts, topped up to 11)."""
+    (1 GK, then DEF/MID/FWD by start counts, topped up to 11).
+
+    When a synced registered squad exists for the team (pull_squads.py),
+    players no longer in it are excluded — otherwise last season's minutes
+    would keep picking players who transferred away over the summer."""
+    has_squad = conn.execute(
+        "SELECT 1 FROM players WHERE team_id=? AND in_current_squad=1 LIMIT 1",
+        (team_id,)).fetchone() is not None
+    squad_filter = ("AND p.in_current_squad=1 AND p.team_id=:tid"
+                    if has_squad else "")
     rows = conn.execute(
-        """WITH recent AS (
+        f"""WITH recent AS (
              SELECT m.id FROM matches m
-             WHERE (m.home_team_id=? OR m.away_team_id=?)
-               AND m.season=? AND m.date<?
-             ORDER BY m.date DESC LIMIT ?)
+             WHERE (m.home_team_id=:tid OR m.away_team_id=:tid)
+               AND m.season=:season AND m.date<:as_of
+             ORDER BY m.date DESC LIMIT :n)
            SELECT pmm.player_id, p.position,
                   SUM(pmm.started) AS starts, SUM(pmm.minutes) AS mins
            FROM player_match_minutes pmm
            JOIN recent r ON r.id = pmm.match_id
            JOIN players p ON p.id = pmm.player_id
-           WHERE pmm.team_id = ?
+           WHERE pmm.team_id = :tid {squad_filter}
            GROUP BY pmm.player_id
            ORDER BY starts DESC, mins DESC""",
-        (team_id, team_id, season, as_of_date, last_n, team_id)).fetchall()
+        {"tid": team_id, "season": season, "as_of": as_of_date,
+         "n": last_n}).fetchall()
     if not rows:
         return []
 
-    by_pos = {"GK": [], "DEF": [], "MID": [], "FWD": [], None: []}
+    # Greedy by starts (rows are pre-sorted starts DESC, mins DESC) under
+    # loose position caps — real shape doesn't matter, only who plays.
+    # Greedy keeps the position mix balanced; building each position group
+    # to its cap and truncating would always cut the last group appended.
+    caps = {"GK": 1, "DEF": 5, "MID": 5, "FWD": 3, None: 2}
+    taken = {k: 0 for k in caps}
+    xi = []
     for r in rows:
-        by_pos.setdefault(r["position"], by_pos[None]).append(r["player_id"])
-    xi = by_pos["GK"][:1]
-    # loose 4-4-2-ish caps; real shape doesn't matter, only who plays
-    for pos, cap in (("DEF", 5), ("MID", 5), ("FWD", 3)):
-        xi += by_pos[pos][:cap]
-    if len(xi) > 11:
-        xi = xi[:11]
-    else:  # top up with next most-started regardless of position
+        pos = r["position"] if r["position"] in caps else None
+        if len(xi) < 11 and taken[pos] < caps[pos]:
+            xi.append(r["player_id"])
+            taken[pos] += 1
+    if len(xi) < 11:  # sparse data: top up ignoring caps
         for r in rows:
             if len(xi) == 11:
                 break
