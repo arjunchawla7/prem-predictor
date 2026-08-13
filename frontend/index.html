@@ -117,7 +117,12 @@
   .xi li { display:flex; justify-content:space-between; gap:6px; padding:2px 0;
            border-bottom:1px dashed var(--line); align-items:center; }
   .face { width:22px; height:22px; border-radius:50%; object-fit:cover;
-          background:var(--line); vertical-align:middle; }
+          object-position:top; background:var(--line); vertical-align:middle;
+          flex:0 0 auto; }
+  /* initials stand in when the PL photo CDN has no image for a player */
+  .ini { display:inline-flex; align-items:center; justify-content:center;
+         font-size:9px; font-weight:800; color:var(--ink2);
+         letter-spacing:.2px; }
   .pos { display:inline-block; width:30px; color:var(--ink3); font-size:11px; }
   .tier { font-weight:700; color:var(--ink2); }
   .fat-hi { color:#f87171; font-weight:700; }
@@ -156,12 +161,24 @@
                  transform:translate(-50%,-55%); border-radius:50%; }
   .slot { position:absolute; transform:translate(-50%,-50%); width:64px;
           text-align:center; cursor:pointer; user-select:none; }
-  .slot .dot { width:40px; height:40px; margin:0 auto; border-radius:50%;
-               background:rgba(255,255,255,.92); color:var(--ink);
-               display:flex; align-items:center; justify-content:center;
-               font-weight:800; font-size:13px;
+  /* the disc is white in both themes, so its text is pinned dark rather than
+     following --ink (which is near-white in dark mode and vanished here) */
+  .slot .dot { position:relative; width:40px; height:40px; margin:0 auto;
+               border-radius:50%; background:rgba(255,255,255,.92);
+               color:#111827; display:flex; align-items:center;
+               justify-content:center; font-weight:800; font-size:13px;
                border:2.5px solid rgba(255,255,255,.9);
-               box-shadow:0 2px 6px rgba(0,0,0,.25); }
+               box-shadow:0 2px 6px rgba(0,0,0,.25); overflow:hidden; }
+  /* photo sits over the shirt number; if the CDN has no image for this
+     player it removes itself and the number/initials stay visible */
+  .slot .dot img { position:absolute; inset:0; width:100%; height:100%;
+                   object-fit:cover; object-position:top; }
+  .slot.warn .dot { border-color:var(--warn); }
+  .slot .bang { position:absolute; top:-4px; left:2px; width:16px; height:16px;
+                border-radius:50%; background:var(--warn); color:#231c07;
+                font-size:11px; font-weight:800; line-height:16px; }
+  .mismatch { margin-top:8px; background:var(--warn-t); color:var(--warn);
+              border-radius:8px; padding:6px 10px; font-size:12px; }
   .slot.empty .dot { background:rgba(255,255,255,.22); color:#fff;
                      border-style:dashed; font-size:19px; font-weight:600; }
   .slot.active .dot { border-color:#ffd84d;
@@ -188,7 +205,8 @@
   .prow .meta2 { color:var(--ink3); font-size:11.5px; white-space:nowrap; }
   .newtag { color:#5ad19a; font-weight:700; font-size:10.5px; }
   .pface { width:26px; height:26px; border-radius:50%; object-fit:cover;
-           background:var(--line); flex:0 0 auto; }
+           object-position:top; background:var(--line); flex:0 0 auto; }
+  .pface.ini { font-size:10px; }
 </style>
 </head>
 <body>
@@ -229,6 +247,7 @@ performance page before trusting anything.</div>
       <div class="pool" id="pool"></div>
     </div>
   </div>
+  <div class="mismatch" id="ed-mismatch" style="display:none"></div>
   <p class="cnt">Tap a pitch slot, then a player (or just tap players — slots
   fill in order). Fill all 11, or clear a side entirely to keep its
   season-average weighting.</p>
@@ -275,12 +294,32 @@ function crest(t) {
 
 function fatCls(f) { return f >= 70 ? 'fat-hi' : f >= 50 ? 'fat-md' : 'fat-lo'; }
 
+// The PL photo CDN has no image for many squad players (it answers 403), so
+// every avatar falls back to the player's initials rather than a blank disc.
+function initials(name) {
+  const parts = (name || '?').trim().split(/\s+/);
+  const first = parts[0][0] || '?';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+function avatarFail(el, ini) {
+  const s = document.createElement('span');
+  s.className = el.className + ' ini';
+  s.textContent = ini;
+  el.replaceWith(s);
+}
+function avatar(p, cls) {
+  const ini = initials(p.name);
+  if (!p.photo) return `<span class="${cls} ini">${ini}</span>`;
+  return `<img class="${cls}" src="${p.photo}" alt="" loading="lazy"
+     onerror="avatarFail(this,'${ini}')">`;
+}
+
 function xiList(lineup) {
   if (!lineup) return `<div class="provtag">no lineup — season-average rating used</div>`;
   return '<ul>' + lineup.map(p =>
     `<li><span style="display:flex;align-items:center;gap:7px">` +
-    (p.photo ? `<img class="face" src="${p.photo}" loading="lazy"
-       onerror="this.style.visibility='hidden'">` : '<span class="face"></span>') +
+    avatar(p, 'face') +
     `<span class="pos">${p.detail_pos || p.position}</span>${p.name}` +
     (p.provisional ? ' <span class="provtag">prov</span>' : '') +
     `</span><span><span class="tier">T${p.tier}</span>
@@ -474,20 +513,30 @@ function drawPitch() {
   const F = FORMATIONS[ED.formation[side]];
   const pitch = document.getElementById('pitch');
   pitch.querySelectorAll('.slot').forEach(e => e.remove());
+  const mismatches = [];
   F.xy.forEach(([x, y], i) => {
     const pid = ED.slots[side][i];
     const p = pid ? playerById(side, pid) : null;
+    const role = F.roles[i];
+    // Out-of-position picks are allowed on purpose (testing "what if City
+    // play a midfielder at the back" is the point of manual mode) — they are
+    // flagged, never blocked.
+    const off = p && p.position && p.position !== role;
+    if (off) mismatches.push(`${shortName(p.name)} (${p.detail_pos || p.position})
+      in a ${role} slot`);
     const div = document.createElement('div');
     div.className = 'slot' + (p ? '' : ' empty')
-      + (i === ED.active ? ' active' : '');
+      + (i === ED.active ? ' active' : '') + (off ? ' warn' : '');
     div.style.left = x + '%';
     div.style.top = y + '%';
     div.innerHTML = p
-      ? `<div class="dot" style="${p.photo ? `background-image:url(${p.photo});
-           background-size:cover;background-position:top;color:transparent` : ''}">
-           ${p.shirt || p.position[0]}</div>
+      ? `<div class="dot" title="${p.name} — ${p.detail_pos || p.position}">
+           ${p.shirt || initials(p.name)}
+           ${p.photo ? `<img src="${p.photo}" alt="" loading="lazy"
+              onerror="this.remove()">` : ''}</div>
+         ${off ? '<div class="bang" title="out of position">!</div>' : ''}
          <div class="nm">${shortName(p.name)}</div><div class="rm">✕</div>`
-      : `<div class="dot">+</div><div class="nm">${F.roles[i]}</div>`;
+      : `<div class="dot">+</div><div class="nm">${role}</div>`;
     div.onclick = ev => {
       if (ev.target.classList.contains('rm')) {
         ED.slots[side][i] = null;
@@ -501,6 +550,12 @@ function drawPitch() {
   });
   const n = ED.slots[side].filter(s => s !== null).length;
   document.getElementById('ed-count').textContent = `${n}/11`;
+  const warn = document.getElementById('ed-mismatch');
+  warn.style.display = mismatches.length ? 'block' : 'none';
+  warn.innerHTML = mismatches.length
+    ? `⚠ ${mismatches.length} out of position: ${mismatches.join('; ')}.
+       Allowed — the prediction uses each player's own rating either way.`
+    : '';
 }
 
 function drawPool(filter = '') {
@@ -525,8 +580,7 @@ function drawPool(filter = '') {
     html += `<div class="prow ${used.has(p.id) ? 'used' : ''}"
       onclick="assign(${p.id})">
       <span style="display:flex;align-items:center;gap:7px">` +
-      (p.photo ? `<img class="pface" src="${p.photo}" loading="lazy"
-         onerror="this.style.visibility='hidden'">` : '<span class="pface"></span>') +
+      avatar(p, 'pface') +
       `${p.shirt ? '#' + p.shirt + ' ' : ''}${p.name}
         ${p.new_signing ? '<span class="newtag">NEW</span>' : ''}</span>
       <span class="meta2">${p.detail_pos || p.position} · T${p.tier}${p.new_signing

@@ -78,7 +78,11 @@
         padding:3px 0; border-bottom:1px dashed var(--line); font-size:13px;
         align-items:center; }
   .face { width:24px; height:24px; border-radius:50%; object-fit:cover;
-          background:var(--line); }
+          object-position:top; background:var(--line); flex:0 0 auto; }
+  /* initials stand in when the PL photo CDN has no image for a player */
+  .ini { display:inline-flex; align-items:center; justify-content:center;
+         font-size:9.5px; font-weight:800; color:var(--ink2); }
+  .mug.ini { font-size:14px; }
   .pl .num { display:inline-block; width:24px; color:var(--ink3);
              font-size:11.5px; }
   .tier { font-weight:700; color:var(--ink2); }
@@ -91,8 +95,8 @@
   .sheet { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
   @media (max-width:640px){ .sheet { grid-template-columns:1fr; } }
   .boss { display:flex; gap:11px; align-items:center; margin-bottom:10px; }
-  .boss img { width:46px; height:56px; object-fit:cover; object-position:top;
-              border-radius:8px; background:var(--line); }
+  .boss .mug { width:46px; height:56px; object-fit:cover; object-position:top;
+               border-radius:8px; background:var(--line); flex:0 0 auto; }
   .boss .bn { font-weight:700; font-size:14px; }
   .boss .br { font-size:12px; color:var(--ink3); }
   .shape { display:inline-block; font-size:20px; font-weight:800;
@@ -124,6 +128,26 @@ const pct = x => Math.round(100 * x) + '%';
 const fid = new URLSearchParams(location.search).get('id');
 
 function fatCls(f) { return f >= 70 ? 'fat-hi' : f >= 50 ? 'fat-md' : 'fat-lo'; }
+
+// The PL photo CDN has no image for many players (it answers 403), so every
+// avatar falls back to initials rather than a blank disc.
+function initials(name) {
+  const parts = (name || '?').trim().split(/\s+/);
+  return ((parts[0][0] || '?') +
+          (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+function avatarFail(el, ini) {
+  const s = document.createElement('span');
+  s.className = el.className + ' ini';
+  s.textContent = ini;
+  el.replaceWith(s);
+}
+function avatar(p, cls) {
+  const ini = initials(p.name);
+  if (!p.photo) return `<span class="${cls} ini">${ini}</span>`;
+  return `<img class="${cls}" src="${p.photo}" alt="" loading="lazy"
+     onerror="avatarFail(this,'${ini}')">`;
+}
 function kickoff(d) {
   if (!d) return 'kickoff TBC';
   return new Date(d.replace(' ', 'T') + 'Z').toLocaleString([], {
@@ -151,8 +175,7 @@ function xiSide(name, lineup) {
     h += `<div class="posgrp">${g === '?' ? 'OTHER' : g}</div>` +
       groups[g].map(p => `<div class="pl">
         <span style="display:flex;align-items:center;gap:8px">` +
-        (p.photo ? `<img class="face" src="${p.photo}" loading="lazy"
-           onerror="this.style.visibility='hidden'">` : '<span class="face"></span>') +
+        avatar(p, 'face') +
         `<span class="num">${p.detail_pos || ''}</span>${p.name}
          ${p.provisional ? ' <span class="provtag">prov</span>' : ''}</span>
         <span><span class="tier">T${p.tier}</span>
@@ -235,8 +258,10 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     return `<div>
       <strong>${t.name}</strong>
       <div class="boss">
-        ${mg && mg.photo ? `<img src="${mg.photo}" loading="lazy"
-           onerror="this.style.visibility='hidden'">` : '<div style="width:46px"></div>'}
+        ${mg ? (mg.photo ? `<img class="mug" src="${mg.photo}" alt="" loading="lazy"
+             onerror="avatarFail(this,'${initials(mg.name)}')">`
+           : `<span class="mug ini">${initials(mg.name)}</span>`)
+         : '<div style="width:46px"></div>'}
         <div><div class="bn">${mg ? mg.name : 'manager unknown'}</div>
           <div class="br">${mg ? [mg.role, mg.nationality].filter(Boolean).join(' · ') : ''}</div></div>
       </div>
