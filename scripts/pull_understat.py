@@ -160,14 +160,20 @@ def load_rosters(conn, us_year: str, our_season: str):
                 tid = conn.execute(
                     f"SELECT {tid_col} AS t FROM matches WHERE id=?",
                     (row["id"],)).fetchone()["t"]
-                started = 1 if entry.get("roster_in") == "0" else 0
+                # Starters are the entries with a real position code; bench
+                # players carry position 'Sub'. (roster_in is NOT a minute —
+                # it also reads "0" for substitutes, which silently produced
+                # wrong starting XIs before this was corrected.)
+                pos_code = entry.get("position")
+                started = 0 if pos_code == "Sub" else 1
                 conn.execute(
                     """INSERT OR REPLACE INTO player_match_minutes
                          (match_id, player_id, team_id, minutes, goals,
-                          assists, started)
-                       VALUES (?,?,?,?,?,?,?)""",
+                          assists, started, slot_pos)
+                       VALUES (?,?,?,?,?,?,?,?)""",
                     (row["id"], pid, tid, int(entry["time"]),
-                     int(entry["goals"]), int(entry["assists"]), started))
+                     int(entry["goals"]), int(entry["assists"]), started,
+                     pos_code))
         done += 1
         if done % 50 == 0:
             conn.commit()

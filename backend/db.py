@@ -110,6 +110,18 @@ CREATE TABLE IF NOT EXISTS predictions (
     partial_data INTEGER DEFAULT 0      -- 1 = prediction from incomplete data
 );
 
+CREATE TABLE IF NOT EXISTS managers (
+    id INTEGER PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id),
+    pulse_id INTEGER UNIQUE,
+    opta_code TEXT,                     -- 'man51018', keys the photo CDN
+    name TEXT NOT NULL,
+    role TEXT,                          -- Manager / Head Coach
+    nationality TEXT,
+    dob TEXT,
+    updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS transfers (
     id INTEGER PRIMARY KEY,
     player_id INTEGER NOT NULL REFERENCES players(id),
@@ -154,6 +166,9 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     add_col("players", "in_current_squad", "INTEGER DEFAULT 0")
     add_col("players", "detail_pos", "TEXT")   # e.g. ST / RW / CDM / CB / LB
     add_col("players", "opta_code", "TEXT")    # 'p154561', keys the photo CDN
+    # understat slot code for that appearance (GK/DC/DL/DMC/AMC/FW/...),
+    # which is what formation shapes are derived from
+    add_col("player_match_minutes", "slot_pos", "TEXT")
     return conn
 
 

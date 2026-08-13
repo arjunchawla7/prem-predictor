@@ -30,6 +30,8 @@ def main():
     run("pull_understat.py", "--refresh-league")
     run("pull_fixtures.py")
     run("pull_squads.py")
+    run("pull_managers.py")
+    run("backfill_slots.py")
     run("pull_odds.py")
 
     from backend.db import connect

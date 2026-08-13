@@ -47,6 +47,9 @@ No OS scheduling is set up — both are manual by design.
 - **Gameweek view** — W/D/L bars, top scorelines, xG, lineup mode badge
   (Provisional / Final / Manual), starting XI with rating tier + fatigue,
   market odds when available, partial-data warnings.
+- **Match page** (`match page →` on any fixture) — scoreline heatmap,
+  position-grouped lineups with player photos, teamsheet (manager, derived
+  preferred formation, tactical traits), summer arrivals, prediction history.
 - **Manual lineup (Mode 3)** — "edit XI" on any fixture: pick exactly 11 per
   side (or leave one side untouched). Locks the fixture to manual — automatic
   rebuilds skip it until you hit "reset to auto".
@@ -76,13 +79,19 @@ Without a key the odds pull skips gracefully and the UI says so.
 - **Layer 2 — style** (`models/style.py`): k-means style buckets from shot
   proxies; matchup adjustment learned from *Layer-1 residuals* (so it can't
   just rediscover "good beats bad"); capped ±0.15 xG.
+- **Team profile** (`models/formation.py`): preferred formation *derived*
+  from the position codes of each side's real starting XIs over its last 30
+  matches (4-2-3-1, 3-5-2, …), reported with its share and the runner-up
+  shapes; plus tactical trait labels from league percentile ranks on shot
+  volume, xG per shot, shots conceded and corners. No possession or pressing
+  data exists in this database, so no claim is made about either.
 
 ### Validation findings (2025-26 walk-forward backtest)
 
 | variant | accuracy | Brier | log-loss |
 |---|---|---|---|
 | Layer 1 season-average | 46.6% | 0.6188 | 1.0569 |
-| + lineup/fatigue/travel | 46.3% | 0.6189 | 1.0569 |
+| + lineup/fatigue/travel | 46.6% | 0.6186 | 1.0566 |
 | + Layer 2 style | 46.8% | 0.6184 | 1.0563 |
 
 **Neither addition meaningfully improved calibration.** Both are kept in the
@@ -94,9 +103,14 @@ earning their keep — re-check on 2026-27 data as it accumulates.
 - Results/shots/cards: football-data.co.uk **via its GitHub mirror**
   (`datasets/football-datasets`) — the origin site is blocked as "Gambling"
   by the FortiGate firewall on this network. Same CSVs, same schema.
-- xG, player minutes/rosters: understat.com (internal JSON API; needs
-  `X-Requested-With` header).
-- Fixtures, gameweeks, confirmed lineups: official PL Pulselive API.
+- xG, player minutes/rosters/position codes: understat.com (internal JSON
+  API; needs `X-Requested-With` header). Note: understat's `roster_in` is
+  **not** a minute and reads "0" for substitutes too — starters are the
+  entries whose position code isn't `Sub`. Getting this wrong silently
+  produces wrong starting XIs (it did, until `backfill_slots.py` repaired
+  every stored appearance).
+- Fixtures, gameweeks, confirmed lineups, squads, managers, crests and
+  player photos: official PL Pulselive API (`footballapi.pulselive.com`).
 - **Gaps (flagged in-app, not faked):** no cup/European minutes (fatigue
   understated for European teams); no true defensive stats (proxy ratings);
   promoted teams start on a weakest-3 prior; FPL API is FortiGuard-blocked.

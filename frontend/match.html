@@ -88,6 +88,22 @@
   .provtag { color:var(--ink3); font-style:italic; font-size:11px; }
   .footnote { font-size:11.5px; color:var(--ink3); margin-top:10px; }
 
+  .sheet { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:640px){ .sheet { grid-template-columns:1fr; } }
+  .boss { display:flex; gap:11px; align-items:center; margin-bottom:10px; }
+  .boss img { width:46px; height:56px; object-fit:cover; object-position:top;
+              border-radius:8px; background:var(--line); }
+  .boss .bn { font-weight:700; font-size:14px; }
+  .boss .br { font-size:12px; color:var(--ink3); }
+  .shape { display:inline-block; font-size:20px; font-weight:800;
+           letter-spacing:-.5px; color:var(--home); }
+  .shape-meta { font-size:11.5px; color:var(--ink3); margin-top:2px; }
+  .alt { font-size:11.5px; color:var(--ink3); margin-top:4px; }
+  .traits { list-style:none; padding:0; margin:10px 0 0; }
+  .traits li { display:flex; justify-content:space-between; gap:8px;
+               font-size:12.5px; padding:3px 0;
+               border-bottom:1px dashed var(--line); }
+  .traits .pv { color:var(--ink3); font-size:11.5px; white-space:nowrap; }
   table.plain { border-collapse:collapse; width:100%; font-size:13px; }
   .plain th, .plain td { text-align:left; padding:5px 10px 5px 0;
     border-bottom:1px solid var(--line); }
@@ -211,6 +227,39 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       F = fatigue 0-100 (league minutes only) · prov = provisional
       league-average rating</div></div>`;
   }
+
+  const sheet = side => {
+    const t = d[side], mg = (d.managers || {})[side];
+    const pf = ((d.profiles || {})[side] || {});
+    const f = pf.formation, traits = pf.traits || [];
+    return `<div>
+      <strong>${t.name}</strong>
+      <div class="boss">
+        ${mg && mg.photo ? `<img src="${mg.photo}" loading="lazy"
+           onerror="this.style.visibility='hidden'">` : '<div style="width:46px"></div>'}
+        <div><div class="bn">${mg ? mg.name : 'manager unknown'}</div>
+          <div class="br">${mg ? [mg.role, mg.nationality].filter(Boolean).join(' · ') : ''}</div></div>
+      </div>
+      ${f ? `<div class="shape">${f.formation}</div>
+        <div class="shape-meta">most-used shape — ${Math.round(100 * f.share)}%
+        of last ${f.sample} matches</div>
+        ${f.alternatives.length ? `<div class="alt">also used:
+          ${f.alternatives.map(a => `${a.formation} (${a.matches})`).join(', ')}</div>` : ''}`
+        : `<div class="provtag">not enough lineup data to derive a shape</div>`}
+      ${traits.length ? `<ul class="traits">${traits.map(x =>
+        `<li><span>${x.label}</span><span class="pv">${x.detail} ·
+         p${x.percentile}</span></li>`).join('')}</ul>`
+        : `<div class="provtag" style="margin-top:8px">no standout tactical
+           traits vs the league</div>`}
+    </div>`;
+  };
+  html += `<div class="card"><h2>Teamsheet — manager, shape &amp; tactics</h2>
+    <div class="sheet">${sheet('home')}${sheet('away')}</div>
+    <div class="footnote">Formation is derived from the position codes of
+    each side's actual starting XIs over its last 30 matches, not taken from
+    a team-news source. Traits are percentile ranks within this league window
+    using shot, xG and corner data — this database has no possession or
+    pressing data, so no claim is made about either.</div></div>`;
 
   const ti = d.transfers_in;
   if (ti && (ti.home.length || ti.away.length)) {

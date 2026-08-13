@@ -217,6 +217,19 @@ def api_fixture_detail(fid):
     odds = conn.execute(
         "SELECT * FROM market_odds WHERE fixture_id=? ORDER BY ts DESC LIMIT 1",
         (fid,)).fetchone()
+    from models.formation import team_profile
+    before = (f["date"] or "")[:10] or None
+    profiles = {side: team_profile(conn, tid, before)
+                for side, tid in (("home", f["hid"]), ("away", f["aid"]))}
+    managers = {}
+    for side, tid in (("home", f["hid"]), ("away", f["aid"])):
+        m = conn.execute(
+            """SELECT name, role, nationality, opta_code FROM managers
+               WHERE team_id=?""", (tid,)).fetchone()
+        managers[side] = ({"name": m["name"], "role": m["role"],
+                           "nationality": m["nationality"],
+                           "photo": photo_url(m["opta_code"], "110x140")}
+                          if m else None)
     recent_transfers = {}
     for side, tid in (("home", f["hid"]), ("away", f["aid"])):
         recent_transfers[side] = [dict(r) for r in conn.execute(
@@ -232,6 +245,7 @@ def api_fixture_detail(fid):
         "away": {"id": f["aid"], "name": f["an"], "crest": f["ac"]},
         "prediction": None, "history": history, "odds": None,
         "transfers_in": recent_transfers,
+        "managers": managers, "profiles": profiles,
     }
     if pred:
         as_of = f["date"] or ""
