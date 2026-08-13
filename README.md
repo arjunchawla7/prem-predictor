@@ -152,19 +152,22 @@ site has real predictions immediately instead of an empty schema.
 2. On [render.com](https://render.com): **New → Blueprint**, point it at the
    repo. Render reads `render.yaml` and creates the web service.
 3. First deploy takes a few minutes (installs deps, then `seed_disk.py`
-   copies `data/seed/prem.db` onto the persistent disk). After that you get
+   copies `data/seed/prem.db` into place at build time). After that you get
    a public URL.
 
-**Persistence caveat:** the free plan may not include a persistent disk —
-check when the service is created. If it doesn't, the database resets to
-the seed bundle on every deploy/restart (fine for browsing, not for
-accumulating new predictions). A paid "Starter" instance keeps the disk.
+**Persistence caveat (confirmed, not hypothetical):** Render's free tier
+supports neither a persistent disk nor a preDeploy step, so the database
+lives in the container's own ephemeral filesystem — every deploy or restart
+resets it back to the `data/seed/` snapshot committed in the repo. Fine for
+browsing predictions, not for accumulating new ones between deploys. A paid
+"Starter" instance (~$7/mo) adds a real persistent disk if that matters.
 
-**Updating deployed data:** there's no scheduled job on the free tier. To
-push newer data live: run `refresh_week.py` locally as usual, then
-`scripts\make_seed.py` to refresh `data/seed/`, commit, and push — the next
-deploy picks it up. (Or run `rebuild_confirmed.py` similarly before a
-gameweek.) This is a personal-project workaround, not a real pipeline.
+**Updating deployed data:** there's no scheduled job on the free tier, and
+nothing persists between deploys anyway. To push newer data live: run
+`refresh_week.py` locally as usual, then `scripts\make_seed.py` to refresh
+`data/seed/`, commit, and push — the next deploy picks it up. (Or run
+`rebuild_confirmed.py` similarly before a gameweek.) This is a
+personal-project workaround, not a real pipeline.
 
 ### Pushing to GitHub for the first time
 

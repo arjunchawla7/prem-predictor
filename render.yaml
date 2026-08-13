@@ -3,13 +3,11 @@ services:
     name: prem-predictor
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    preDeployCommand: python scripts/seed_disk.py
+    # Render's free tier supports neither persistent disks nor
+    # preDeployCommand, so seeding happens at build time into the repo's
+    # own (ephemeral) filesystem instead of a mounted disk. That means
+    # every deploy/restart resets to the data/seed/ snapshot — see the
+    # README's deploy section for what that trades away and how to push
+    # newer data.
+    buildCommand: pip install -r requirements.txt && python scripts/seed_disk.py
     startCommand: gunicorn --bind 0.0.0.0:$PORT backend.app:app
-    envVars:
-      - key: PREM_DATA_DIR
-        value: /var/data
-    disk:
-      name: prem-data
-      mountPath: /var/data
-      sizeGB: 1
