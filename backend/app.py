@@ -22,7 +22,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from backend.db import connect
+from backend.db import connect, DATA_DIR
 from backend.predict import Predictor, next_gameweek, CURRENT_SEASON
 from models.fatigue import player_fatigue
 from models.player_ratings import RatingBook
@@ -309,7 +309,7 @@ def api_performance():
     }
     from models.backtest import metrics, calibration_table
     for label, fn in files.items():
-        path = ROOT / "data" / "backtests" / fn
+        path = DATA_DIR / "backtests" / fn
         if not path.exists():
             continue
         bt = pd.read_csv(path)
@@ -335,4 +335,7 @@ def api_performance():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=5000)
+    # Local dev only — a real deployment runs this through gunicorn (see
+    # Procfile), which binds $PORT itself and never hits this branch.
+    import os
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

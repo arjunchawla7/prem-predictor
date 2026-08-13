@@ -16,7 +16,13 @@ One local file: data/prem.db. Tables:
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "prem.db"
+import os
+
+# PREM_DATA_DIR / PREM_DB_PATH let a deployment point at a persistent-disk
+# mount (e.g. Render) instead of the repo-relative default used locally.
+DATA_DIR = Path(os.environ.get(
+    "PREM_DATA_DIR", str(Path(__file__).resolve().parents[1] / "data")))
+DB_PATH = Path(os.environ.get("PREM_DB_PATH", str(DATA_DIR / "prem.db")))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS teams (
@@ -149,6 +155,7 @@ CREATE TABLE IF NOT EXISTS pull_log (
 
 
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

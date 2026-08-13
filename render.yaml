@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: prem-predictor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python scripts/seed_disk.py
+    startCommand: gunicorn --bind 0.0.0.0:$PORT backend.app:app
+    envVars:
+      - key: PREM_DATA_DIR
+        value: /var/data
+    disk:
+      name: prem-data
+      mountPath: /var/data
+      sizeGB: 1
