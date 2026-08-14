@@ -111,7 +111,8 @@ Run `python scripts/accuracy_pass.py` to reproduce; results land in
 | Layer 1, goals target, unshrunk (was shipping) | 46.6% | 0.6188 | 1.0607 | — |
 | + rating shrinkage (`PRIOR_STRENGTH=5`) | 47.1% | 0.6151 | 1.0248 | **kept** |
 | + xG fitting target (`BLEND_W=0`) | 47.9% | 0.6150 | 1.0247 | **kept** |
-| **both together (ships now)** | **48.7%** | **0.6142** | **1.0237** | **kept** |
+| both together | 48.7% | 0.6142 | 1.0237 | **kept** |
+| **+ draw correction (ships now)** | **48.7%** | **0.6123** | **1.0203** | **kept** |
 | goals/xG blends (0.25 / 0.5 / 0.75) | 47.1–47.6% | 0.6149–0.6168 | 1.0250–1.0314 | discarded |
 | time decay xi ∈ {.0003,.0005,.0018,.003,.005} | 46.3–47.1% | 0.6183–0.6241 | 1.0576–1.0710 | discarded — 0.001 already best |
 | 7 training seasons instead of 4 | 46.8% | 0.6211 | 1.0590 | discarded |

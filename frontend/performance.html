@@ -114,11 +114,14 @@ fetch('/api/performance').then(r => r.json()).then(d => {
    help marginally, but against the corrected Layer 1 it costs accuracy
    (.466 vs .487) — most likely it was compensating for the unshrunk ratings
    and now double-counts a correction Layer 1 already makes.</li>
-   <li><strong>A draw is never the model's top pick.</strong> A Poisson
-   scoreline grid caps draw probability near 30% while draws are ~27% of
-   results, so roughly a quarter of matches cannot be called correctly by
-   argmax. This is the largest single component of the accuracy ceiling and is
-   structural, not a tuning problem.</li>
+   <li><strong>A draw is never the model's top pick</strong> — and the draw
+   correction does not change that. The drawn scorelines now carry a fitted
+   boost plus an out-of-sample scale, which lifted the mean predicted draw from
+   .234 to .258 against an actual .274 and improved Brier by .0019. But the
+   nearest a draw comes to leading is 6.6 points, and inflating far enough to
+   close that makes calibration worse, so roughly a quarter of matches still
+   cannot be called correctly by argmax. The correction makes the
+   probabilities more honest; it does not raise the hit-rate.</li>
    <li>Best pure-model accuracy on the 2025-26 holdout is <strong>48.7%</strong>.
    For scale, bookmakers' closing odds — the strongest public predictor
    available — score 49.5% on the same 380 matches. Treat 50%+ unassisted

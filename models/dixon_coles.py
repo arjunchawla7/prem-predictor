@@ -67,6 +67,20 @@ class DixonColes:
                                 # 0.0005-0.005, this had the best log-loss)
     blend_w: float = 1.0        # target = blend_w*goals + (1-blend_w)*xG.
                                 # 1.0 = goals (original), 0.0 = pure xG.
+    draw_boost: float = 1.0     # multiplier on the drawn cells of the score
+                                # grid, fitted per refit on the training
+                                # window. 1.0 = plain Dixon-Coles. See
+                                # fit_draw_boost() for why it is needed and
+                                # what it does NOT fix.
+    draw_scale: float = 1.0     # fixed out-of-sample correction stacked on
+                                # draw_boost. draw_boost is fitted IN-sample,
+                                # where the model is already better calibrated
+                                # than it will be on unseen fixtures, so it
+                                # under-corrects on its own. Scaling the grid
+                                # diagonal and scaling the final draw
+                                # probability are algebraically identical
+                                # (both renormalise over the same total), so
+                                # the two multipliers simply compose.
     prior_strength: float = 0.0  # Gaussian prior pulling log attack/defence
                                 # toward the league average. 0 = unregularised
                                 # (original behaviour); see fit() for why this
@@ -184,8 +198,102 @@ class DixonColes:
             for y in (0, 1):
                 grid[x, y] *= tau(np.array(x), np.array(y),
                                   np.array(lam), np.array(mu), self.rho)
+        if self.draw_boost * self.draw_scale != 1.0:
+            grid[np.diag_indices(MAX_GOALS + 1)] *= (self.draw_boost
+                                                     * self.draw_scale)
         grid = np.clip(grid, 0, None)
         return grid / grid.sum()
+
+    def outcome_probs_vec(self, lam, mu, draw_boost=None):
+        """(n, 3) W/D/L probabilities for arrays of lam/mu.
+
+        Same maths as score_grid + outcome_probs, evaluated for every fixture
+        at once — fitting draw_boost needs the whole training set per
+        objective evaluation, which is far too slow one grid at a time.
+        """
+        b = (self.draw_boost if draw_boost is None else draw_boost) * self.draw_scale
+        g = np.arange(MAX_GOALS + 1)
+        lam = np.asarray(lam, float)[:, None]
+        mu = np.asarray(mu, float)[:, None]
+        ph = poisson.pmf(g[None, :], lam)          # (n, G) home goals
+        pa = poisson.pmf(g[None, :], mu)           # (n, G) away goals
+        grid = ph[:, :, None] * pa[:, None, :]     # (n, G, G)
+
+        # tau applies to the four low-score cells only
+        l0, m0 = lam[:, 0], mu[:, 0]
+        grid[:, 0, 0] *= 1 - l0 * m0 * self.rho
+        grid[:, 0, 1] *= 1 + l0 * self.rho
+        grid[:, 1, 0] *= 1 + m0 * self.rho
+        grid[:, 1, 1] *= 1 - self.rho
+        if b != 1.0:
+            idx = np.arange(MAX_GOALS + 1)
+            grid[:, idx, idx] *= b
+
+        grid = np.clip(grid, 0, None)
+        grid /= grid.sum(axis=(1, 2), keepdims=True)
+        i, j = np.tril_indices(MAX_GOALS + 1, -1)
+        p_home = grid[:, i, j].sum(axis=1)
+        p_draw = np.einsum("nii->n", grid)
+        return np.column_stack([p_home, p_draw, 1 - p_home - p_draw])
+
+    def fit_draw_boost(self, matches, as_of=None, bounds=(0.8, 2.0)):
+        """Fit draw_boost by maximum likelihood on observed W/D/L results.
+
+        Why this is needed: a Poisson score grid systematically under-produces
+        draws. Dixon-Coles' rho already corrects the four lowest scorelines,
+        but draws at 2-2 and above get no correction at all, and the model
+        treats each team's strength as a known point estimate when it is
+        really an estimate with spread — both push probability away from the
+        diagonal. Measured on 2025-26: mean predicted draw .234 against an
+        actual .274.
+
+        What it does NOT fix: draws still will not become the argmax pick.
+        The gap between the draw probability and the leading outcome is about
+        6.6 points at its narrowest, so no plausible boost closes it — and
+        forcing one by inflating further makes calibration worse, not better.
+        This improves the honesty of the probabilities, not the headline
+        hit-rate. Those are different things and only the first is a defect.
+
+        Fitted on the same time-decayed training window as everything else,
+        so it never sees the season it is scored on.
+        """
+        import pandas as pd
+        df = pd.DataFrame(matches)
+        df["date"] = pd.to_datetime(df["date"])
+        if as_of is not None:
+            as_of = pd.Timestamp(as_of)
+            df = df[df["date"] < as_of]
+        else:
+            as_of = df["date"].max()
+        df = df[df["home"].isin(self.attack) & df["away"].isin(self.attack)]
+        if df.empty:
+            return self
+
+        lam = np.array([self.attack[h] * self.defence[a] * self.gamma
+                        for h, a in zip(df["home"], df["away"])])
+        mu = np.array([self.attack[a] * self.defence[h]
+                       for h, a in zip(df["home"], df["away"])])
+        hg = df["fthg"].to_numpy(float)
+        ag = df["ftag"].to_numpy(float)
+        actual = np.where(hg > ag, 0, np.where(hg == ag, 1, 2))
+        w = np.exp(-self.xi * (as_of - df["date"]).dt.days.to_numpy(float))
+
+        # draw_scale is the out-of-sample correction that sits ON TOP of this
+        # fit. If it were left applied here, the in-sample optimiser would
+        # simply shrink draw_boost to cancel it out and the correction would
+        # vanish. Neutralise it for the duration of the fit.
+        saved_scale, self.draw_scale = self.draw_scale, 1.0
+        try:
+            def nll(p):
+                probs = self.outcome_probs_vec(lam, mu, draw_boost=float(p[0]))
+                hit = probs[np.arange(len(probs)), actual]
+                return -(w * np.log(np.clip(hit, 1e-12, None))).sum()
+
+            res = minimize(nll, [1.15], method="L-BFGS-B", bounds=[bounds])
+            self.draw_boost = float(res.x[0])
+        finally:
+            self.draw_scale = saved_scale
+        return self
 
     def outcome_probs(self, lam, mu):
         """(p_home, p_draw, p_away) from the scoreline grid."""

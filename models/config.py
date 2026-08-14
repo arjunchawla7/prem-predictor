@@ -29,6 +29,35 @@ PRIOR_STRENGTH = 5.0
 # measured with that pathology still in the frame); 0.001 remained best.
 XI = 0.001
 
+# --- draw calibration -------------------------------------------------------
+# A Poisson score grid under-produces draws: rho corrects only the four lowest
+# scorelines, 2-2 and above get nothing, and point-estimate team strengths push
+# probability off the diagonal. Measured on 2025-26, mean predicted draw was
+# .234 against an actual .274.
+#
+# Two one-parameter corrections, which compose:
+#   draw_boost   fitted per refit on the training window (in-sample, so it
+#                under-corrects on its own — see fit_draw_boost)
+#   DRAW_SCALE   fixed, fitted on 2023-24 + 2024-25 WALK-FORWARD output, i.e.
+#                on out-of-sample predictions, which is where the real
+#                shortfall shows up
+#
+# 2025-26 holdout:
+#   current model                   acc .4868  brier .6142  logloss 1.0237  p̄(draw) .2343
+#   + draw boost                    acc .4868  brier .6133  logloss 1.0222  p̄(draw) .2432
+#   + boost & scale (ships now)     acc .4868  brier .6123  logloss 1.0203  p̄(draw) .2580
+#
+# Read that honestly: this is a CALIBRATION fix worth .0019 Brier, not an
+# accuracy fix. Accuracy is unchanged and a draw is still never the argmax
+# pick — the nearest a draw comes to leading is 6.6 points, and inflating far
+# enough to close that makes Brier and log-loss worse. Full six-parameter
+# vector scaling was also tested and DISCARDED: it fixed the draw buckets but
+# dragged home/away calibration with it (acc .4684, brier .6168), because the
+# home-win rate differs season to season and the correction did not transfer.
+#
+# Refit DRAW_SCALE (scripts/draw_pass.py) as more completed seasons land.
+DRAW_SCALE = 1.0824
+
 # Layer 2 style matchup adjustment, OFF.
 #
 # It used to earn its place (.4684 vs .4658 baseline). Re-run against the fixed
@@ -67,10 +96,23 @@ def configure(model):
     model.blend_w = BLEND_W
     model.prior_strength = PRIOR_STRENGTH
     model.xi = XI
+    model.draw_scale = DRAW_SCALE
     return model
 
 
 def make_model():
-    """Fresh, configured DixonColes — the factory run_backtest expects."""
+    """Fresh, configured DixonColes whose fit() also fits the draw boost.
+
+    The factory run_backtest expects, and what the live predictor uses — so
+    the two cannot diverge.
+    """
     from models.dixon_coles import DixonColes
-    return configure(DixonColes())
+    model = configure(DixonColes())
+    plain_fit = model.fit
+
+    def fit(matches, as_of=None):
+        plain_fit(matches, as_of=as_of)
+        return model.fit_draw_boost(matches, as_of=as_of)
+
+    model.fit = fit
+    return model

@@ -146,6 +146,17 @@ class Predictor:
                       f"prior strength {self.model.prior_strength:g}",
             "status": "validated",
         })
+        draw_mult = self.model.draw_boost * self.model.draw_scale
+        if draw_mult != 1.0:
+            factors.append({
+                "name": "Draw correction",
+                "active": True,
+                "effect": f"x{draw_mult:.3f} on drawn scorelines",
+                "detail": f"fitted boost {self.model.draw_boost:.3f} × "
+                          f"out-of-sample scale {self.model.draw_scale:.3f}; "
+                          "improves calibration, does not change the pick",
+                "status": "validated",
+            })
         if hp or ap:
             factors.append({
                 "name": "Promoted-team prior",

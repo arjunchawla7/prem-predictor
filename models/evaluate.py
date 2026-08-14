@@ -62,6 +62,37 @@ def calibration(bt, outcome="home", bins=8, min_n=5):
     return pd.DataFrame(rows)
 
 
+def vector_scale_fit(probs, actual):
+    """Fit per-class log-probability scaling: q ∝ p^a * exp(b).
+
+    Standard multiclass recalibration (vector scaling). Three temperature
+    terms and three biases, so it can correct a systematic draw shortfall
+    without being told which class is wrong. Returns (a, b).
+    """
+    from scipy.optimize import minimize
+    lp = np.log(np.clip(probs, 1e-12, None))
+    onehot = np.eye(3)[actual]
+
+    def nll(t):
+        a, b = t[:3], t[3:]
+        z = a * lp + b
+        z -= z.max(axis=1, keepdims=True)
+        q = np.exp(z)
+        q /= q.sum(axis=1, keepdims=True)
+        return -(onehot * np.log(np.clip(q, 1e-12, None))).sum()
+
+    res = minimize(nll, np.array([1., 1., 1., 0., 0., 0.]), method="L-BFGS-B")
+    return res.x[:3], res.x[3:]
+
+
+def vector_scale_apply(probs, a, b):
+    lp = np.log(np.clip(probs, 1e-12, None))
+    z = a * lp + b
+    z -= z.max(axis=1, keepdims=True)
+    q = np.exp(z)
+    return q / q.sum(axis=1, keepdims=True)
+
+
 def outcome_summary(bt):
     """Mean predicted probability vs realised rate vs how often each outcome
     was the argmax pick. The draw row is the one that matters for 4c."""
