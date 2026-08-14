@@ -498,6 +498,94 @@ function formationFor(name) {
   return FORMATIONS[name] || buildFormation(name);
 }
 
+// --- specific slot roles ----------------------------------------------------
+// Slot roles are only GK/DEF/MID/FWD, but every player carries a precise
+// detail_pos (CB, LB, RB, CDM, CAM, LW, RW, ST...). Filling a back four by
+// coarse group alone put centre-backs at left-back and, in a 4-2-3-1, dropped
+// a centre-back into the attacking-midfield band. So each slot also gets a
+// SPECIFIC role, derived from where it sits: which line it is in, and its
+// left-to-right order within that line (every layout lists a line in
+// ascending x, hand-placed and generated alike).
+//
+// These drive initial placement only. The out-of-position warning stays on the
+// coarse comparison — flagging a centre-back at left-back would light up
+// almost every real lineup and make the warning worthless.
+const LINE_ROLES = {
+  // defenders, by how many are in the line
+  def: { 3: ['CB','CB','CB'], 4: ['LB','CB','CB','RB'],
+         5: ['LB','CB','CB','CB','RB'] },
+  // the attacking line
+  fwd: { 1: ['ST'], 2: ['ST','ST'], 3: ['LW','ST','RW'] },
+};
+
+/** What each slot really is, e.g. 4-2-3-1 ->
+ *  GK LB CB CB RB CDM CDM LW CAM RW ST */
+function specificRoles(name) {
+  const F = formationFor(name);
+  if (!F) return null;
+  const lines = name.split('-').map(Number);
+  const out = ['GK'];
+  let midDepth = 0;
+  const midCount = lines.length - 2;      // lines that are neither back nor attack
+  lines.forEach((count, li) => {
+    if (li === 0) {
+      out.push(...(LINE_ROLES.def[count] || Array(count).fill('CB')));
+    } else if (li === lines.length - 1) {
+      out.push(...(LINE_ROLES.fwd[count] || Array(count).fill('ST')));
+    } else {
+      // With one midfield line it IS the central midfield — a 4-3-3's three
+      // are central, the wingers live in the forward line. Only when a shape
+      // stacks several midfield bands (4-2-3-1) is the top one the attacking
+      // band, and only then does widening it to wingers make sense.
+      const deepest = midDepth === 0;
+      const highest = midDepth === midCount - 1;
+      let base, widen;
+      if (midCount === 1) {
+        base = 'CM';
+        widen = count >= 4;          // a midfield four is wide-left/wide-right
+      } else if (deepest) {
+        // a double pivot is genuinely holding; a line of three or more that
+        // deep is just central midfield, and a four has wide players in it
+        base = count <= 2 ? 'CDM' : 'CM';
+        widen = count >= 4;
+      } else {
+        base = highest ? 'CAM' : 'CM';
+        widen = highest && count >= 3;
+      }
+      const row = Array(count).fill(base);
+      if (widen) { row[0] = 'LW'; row[row.length - 1] = 'RW'; }
+      out.push(...row);
+      midDepth++;
+    }
+  });
+  return out;
+}
+
+// what a slot will accept, best first, before falling back to coarse group
+const FITS = {
+  GK: ['GK'],
+  LB: ['LB', 'FB', 'LWB'], RB: ['RB', 'FB', 'RWB'], CB: ['CB'],
+  CDM: ['CDM', 'CM'], CM: ['CM', 'CDM', 'CAM'],
+  CAM: ['CAM', 'SS', 'CM'],
+  LW: ['LW', 'W', 'LM'], RW: ['RW', 'W', 'RM'],
+  ST: ['ST', 'SS', 'CF'],
+};
+const COARSE = { GK: 'GK', LB: 'DEF', RB: 'DEF', CB: 'DEF', CDM: 'MID',
+                 CM: 'MID', CAM: 'MID', LW: 'FWD', RW: 'FWD', ST: 'FWD' };
+
+/** How well a player suits a specific slot role. Higher is better, 0 = no. */
+function fitScore(player, role) {
+  const dp = (player.detail_pos || '').toUpperCase();
+  const list = FITS[role] || [];
+  const i = list.indexOf(dp);
+  if (i === 0) return 100;          // exactly this position
+  if (i > 0) return 80 - i * 5;     // an accepted alternative
+  // no detail_pos, or an unrelated one: fall back to the coarse group, which
+  // is all the old placement ever used
+  if (player.position && player.position === COARSE[role]) return dp ? 30 : 40;
+  return 0;
+}
+
 /** Derived shape for one side, falling back safely. `f` is the API's
  *  formation object ({formation, share, sample, ...}) or null. */
 function defaultFormation(f) {
@@ -557,18 +645,44 @@ async function openEditor(fid, hid, hname, aid, aname) {
   dlg.showModal();
 }
 
+/** Fill a shape's slots from a set of players, best fit first.
+ *
+ *  Greedy over the whole score matrix rather than slot-by-slot: it repeatedly
+ *  takes the strongest remaining (slot, player) pair, so one unusual player
+ *  cannot cascade everyone else out of position. Taking slots in order is what
+ *  used to strand a centre-back in the attacking-midfield band — the band was
+ *  simply next in line when the defenders ran out.
+ *
+ *  Ties break toward minutes played, so the regular starter takes the slot.
+ *  Anyone left over fills whatever holes remain, exactly as before.
+ */
+function placeByFit(players, formationName) {
+  const roles = specificRoles(formationName)
+             || formationFor(formationName).roles;
+  const slots = Array(roles.length).fill(null);
+  const left = players.filter(Boolean);
+
+  const pairs = [];
+  roles.forEach((role, si) => left.forEach(p => {
+    const s = fitScore(p, role);
+    if (s > 0) pairs.push({ si, p, s });
+  }));
+  pairs.sort((a, b) => b.s - a.s || (b.p.minutes || 0) - (a.p.minutes || 0));
+
+  const usedSlot = new Set(), usedPlayer = new Set();
+  for (const { si, p, s } of pairs) {
+    if (usedSlot.has(si) || usedPlayer.has(p.id)) continue;
+    slots[si] = p.id;
+    usedSlot.add(si); usedPlayer.add(p.id);
+  }
+  // whoever is still unplaced goes into whatever is still empty
+  const spare = left.filter(p => !usedPlayer.has(p.id));
+  return slots.map(s => s !== null ? s : (spare.length ? spare.shift().id : null));
+}
+
 function prefill(side, lineup) {
   if (!lineup) return;
-  const roles = formationFor(ED.formation[side]).roles;
-  const pool = [...lineup];
-  const take = want => {
-    const i = pool.findIndex(p => p.position === want);
-    return i >= 0 ? pool.splice(i, 1)[0] : null;
-  };
-  ED.slots[side] = roles.map(r => { const p = take(r); return p ? p.id : null; });
-  // leftovers (position mismatch vs formation) fill remaining holes
-  ED.slots[side] = ED.slots[side].map(s =>
-    s !== null ? s : (pool.length ? pool.shift().id : null));
+  ED.slots[side] = placeByFit(lineup, ED.formation[side]);
 }
 
 function playerById(side, id) {
@@ -596,15 +710,9 @@ function changeFormation(f) {
   const filled = ED.slots[side].filter(s => s !== null)
     .map(id => playerById(side, id));
   ED.formation[side] = f;
-  const roles = formationFor(f).roles;
-  const pool = [...filled];
-  const take = want => {
-    const i = pool.findIndex(p => p && p.position === want);
-    return i >= 0 ? pool.splice(i, 1)[0] : null;
-  };
-  ED.slots[side] = roles.map(r => { const p = take(r); return p ? p.id : null; });
-  ED.slots[side] = ED.slots[side].map(s =>
-    s !== null ? s : (pool.length ? pool.shift().id : null));
+  // same fit-based placement as the initial fill, so switching shape
+  // rearranges sensibly instead of reshuffling by coarse group
+  ED.slots[side] = placeByFit(filled, f);
   ED.active = ED.slots[side].findIndex(s => s === null);
   drawPitch(); drawPool(document.getElementById('pool-filter').value);
 }
@@ -612,6 +720,7 @@ function changeFormation(f) {
 function drawPitch() {
   const side = ED.side;
   const F = formationFor(ED.formation[side]);
+  const spec = specificRoles(ED.formation[side]) || F.roles;
   const pitch = document.getElementById('pitch');
   pitch.querySelectorAll('.slot').forEach(e => e.remove());
   const mismatches = [];
@@ -637,7 +746,9 @@ function drawPitch() {
               onerror="this.remove()">` : ''}</div>
          ${off ? '<div class="bang" title="out of position">!</div>' : ''}
          <div class="nm">${shortName(p.name)}</div><div class="rm">✕</div>`
-      : `<div class="dot">+</div><div class="nm">${role}</div>`;
+      // an empty slot names the SPECIFIC role (LB, CDM, RW) rather than the
+      // coarse group, so it is obvious what belongs there
+      : `<div class="dot">+</div><div class="nm">${spec[i] || role}</div>`;
     div.onclick = ev => {
       // A drag ends with pointerup, not click — but browsers still fire a
       // click afterwards. dragJustEnded swallows exactly that one, so a drag
@@ -774,20 +885,28 @@ function drawPool(filter = '') {
   const side = ED.side;
   const f = filter.toLowerCase();
   const used = new Set(ED.slots[side].filter(s => s !== null));
+  const spec = specificRoles(ED.formation[side]);
+  // the specific role of the selected slot (LB, CDM, RW...), so the shortlist
+  // is "players who actually play there" and not "any defender"
   const role = ED.active >= 0
-    ? formationFor(ED.formation[side]).roles[ED.active] : null;
+    ? (spec ? spec[ED.active] : formationFor(ED.formation[side]).roles[ED.active])
+    : null;
   const order = { GK: 0, DEF: 1, MID: 2, FWD: 3, '?': 4 };
+  const fits = p => role ? fitScore(p, role) : 0;
   const pool = [...ED.pools[side]]
     .filter(p => p.name.toLowerCase().includes(f))
     .sort((a, b) => {
-      const ar = (a.position === role ? -1 : order[a.position] ?? 4);
-      const br = (b.position === role ? -1 : order[b.position] ?? 4);
-      return ar - br || b.minutes - a.minutes;
+      const af = fits(a), bf = fits(b);
+      // strong fits first, then the usual position grouping
+      if ((af >= 60) !== (bf >= 60)) return bf - af;
+      if (af >= 60) return bf - af || b.minutes - a.minutes;
+      return (order[a.position] ?? 4) - (order[b.position] ?? 4)
+             || b.minutes - a.minutes;
     });
   let html = '', lastGrp = null;
   for (const p of pool) {
-    const grp = p.position === role ? `${role} — fits selected slot`
-                                    : (p.position || '?');
+    const grp = fits(p) >= 60 ? `${role} — fits selected slot`
+                              : (p.position || '?');
     if (grp !== lastGrp) { html += `<div class="pgrp">${grp}</div>`; lastGrp = grp; }
     html += `<div class="prow ${used.has(p.id) ? 'used' : ''}"
       onclick="assign(${p.id})">
