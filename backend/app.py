@@ -109,16 +109,27 @@ def api_gameweek(gw):
            JOIN teams a ON a.id=f.away_team_id
            WHERE f.season=? AND f.gameweek=? ORDER BY f.date""",
         (CURRENT_SEASON, gw)).fetchall()
+    # The manual lineup builder lives on this page and needs each side's
+    # derived shape to default to. preferred_formation is the trait-free half
+    # of team_profile (~1ms per team), so carrying it here costs nothing and
+    # means the builder reads the SAME source as the teamsheet panel rather
+    # than a hardcoded guess.
+    from models.formation import preferred_formation
     out = []
     for f in fixtures:
         pred = active_prediction(conn, f)
         odds = conn.execute(
             """SELECT * FROM market_odds WHERE fixture_id=?
                ORDER BY ts DESC LIMIT 1""", (f["id"],)).fetchone()
+        before = (f["date"] or "")[:10] or None
+        shapes = {side: preferred_formation(conn, tid, before)
+                  for side, tid in (("home", f["hid"]), ("away", f["aid"]))}
         item = {
             "id": f["id"], "date": f["date"], "gameweek": f["gameweek"],
-            "home": {"id": f["hid"], "name": f["hn"], "crest": f["hcrest"]},
-            "away": {"id": f["aid"], "name": f["an"], "crest": f["acrest"]},
+            "home": {"id": f["hid"], "name": f["hn"], "crest": f["hcrest"],
+                     "formation": shapes["home"]},
+            "away": {"id": f["aid"], "name": f["an"], "crest": f["acrest"],
+                     "formation": shapes["away"]},
             "status": f["status"], "lineup_mode": f["lineup_mode"],
             "prediction": None, "odds": None,
         }
