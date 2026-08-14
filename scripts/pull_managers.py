@@ -21,6 +21,14 @@ API = "https://footballapi.pulselive.com/football"
 COMP_SEASON = "841"
 WANTED_ROLES = ("manager", "head coach")
 
+# Clubs where the feed lists several active "Manager" officials with nothing to
+# distinguish them. Keyed by our team name, valued by the display name of the
+# actual first-team manager. The pull prints a note for any other club that
+# starts returning more than one, so this list surfaces rather than rots.
+FIRST_TEAM_BOSS = {
+    "Chelsea": "Xabi Alonso",
+}
+
 HTTP = session()
 HTTP.headers["User-Agent"] = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                               "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -46,9 +54,30 @@ def main():
                       params={"altIds": "true"}, timeout=30)
         sr.raise_for_status()
         officials = sr.json().get("officials", [])
-        boss = next((o for o in officials
-                     if (o.get("role") or "").lower() in WANTED_ROLES
-                     and o.get("active", True)), None)
+        candidates = [o for o in officials
+                      if (o.get("role") or "").lower() in WANTED_ROLES
+                      and o.get("active", True)]
+        # Some clubs list more than one active "Manager" and the feed gives no
+        # way to tell the first-team boss from the rest — same role, same
+        # active flag, no join date, nothing. Chelsea returns Calum McFarlane
+        # ahead of Xabi Alonso, so taking the first entry silently picked the
+        # wrong man. Rather than invent a tie-break that would guess wrong for
+        # some other club, the real one is named here.
+        pick = FIRST_TEAM_BOSS.get(local)
+        boss = None
+        if pick:
+            boss = next((o for o in candidates
+                         if (o.get("name") or {}).get("display") == pick), None)
+            if boss is None and candidates:
+                print(f"  note: {local} override '{pick}' not in the feed — "
+                      f"using {(candidates[0].get('name') or {}).get('display')}")
+        if boss is None:
+            boss = candidates[0] if candidates else None
+        if len(candidates) > 1 and not pick:
+            names = ", ".join((o.get("name") or {}).get("display")
+                              for o in candidates)
+            print(f"  note: {local} lists {len(candidates)} managers ({names})"
+                  f" — took the first; add to FIRST_TEAM_BOSS if wrong")
         if not boss:
             missing.append(local)
             continue
