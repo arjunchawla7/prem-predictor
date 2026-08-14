@@ -258,6 +258,12 @@ def api_fixture_detail(fid):
             "notes": pred["notes"], "partial_data": bool(pred["partial_data"]),
             "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
             "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
+            # what actually fed THIS prediction; older rows predate the column
+            "factors": json.loads(pred["factors"]) if pred["factors"] else [],
+            "blend": ({"p_home": pred["blend_home"],
+                       "p_draw": pred["blend_draw"],
+                       "p_away": pred["blend_away"]}
+                      if pred["blend_home"] is not None else None),
         }
     if odds:
         inv = [1 / odds["odds_home"], 1 / odds["odds_draw"], 1 / odds["odds_away"]]
@@ -302,11 +308,7 @@ def api_performance():
     import pandas as pd
     conn = db()
     out = {"backtests": [], "prov_vs_final": None, "pull_log": []}
-    files = {
-        "Layer 1 — season-average": "layer1_season_avg_2526.csv",
-        "Layer 1 + lineup/fatigue/travel": "layer1_lineup_weighted_2526.csv",
-        "Layer 1 + Layer 2 (style)": "layer2_style_2526.csv",
-    }
+    from models.config import BACKTEST_FILES as files
     from models.backtest import metrics, calibration_table
     for label, fn in files.items():
         path = DATA_DIR / "backtests" / fn

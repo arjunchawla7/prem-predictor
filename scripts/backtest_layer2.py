@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import connect
 from models.backtest import load_matches, metrics, calibration_table, promoted_prior
-from models.dixon_coles import DixonColes
+from models.config import TRAIN_SEASONS, make_model
 from models.style import StyleAdjuster
 
 OUT = ROOT / "data" / "backtests"
@@ -23,6 +23,7 @@ TARGET = "2526"
 def main():
     conn = connect()
     df = load_matches(conn)
+    df = df[df["season"].isin(TRAIN_SEASONS)]
     tid = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM teams")}
     team_names = {v: k for k, v in tid.items()}
 
@@ -33,7 +34,7 @@ def main():
         date = pd.Timestamp(row["date"])
         if model is None or (date - last_fit).days >= 7:
             train = df[pd.to_datetime(df["date"]) < date]
-            model = DixonColes().fit(train.to_dict("records"), as_of=date)
+            model = make_model().fit(train.to_dict("records"), as_of=date)
             adjuster = StyleAdjuster(conn, model, date, team_names)
             last_fit = date
         for t in (row["home"], row["away"]):

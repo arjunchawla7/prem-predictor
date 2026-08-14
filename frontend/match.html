@@ -31,6 +31,25 @@
   h2 { font-size:14px; margin:0 0 12px; color:var(--ink2);
        text-transform:uppercase; letter-spacing:.6px; font-weight:700; }
 
+  .factors { width:100%; border-collapse:collapse; font-size:13px; }
+  .factors td { padding:9px 8px; border-top:1px solid var(--line);
+                vertical-align:top; }
+  .factors tr:first-child td { border-top:0; }
+  .factors tr.inactive { opacity:.62; }
+  .factors .fname { font-weight:700; white-space:nowrap; width:1%;
+                    padding-right:16px; }
+  .factors .feff { color:var(--ink2); }
+  .fdet { display:block; font-size:11.5px; color:var(--ink3); margin-top:2px; }
+  .fbadge { display:inline-block; font-size:10.5px; font-weight:700;
+            letter-spacing:.4px; text-transform:uppercase; padding:2px 8px;
+            border-radius:999px; white-space:nowrap; cursor:help; }
+  .fbadge.ok { background:#0e2a1e; color:#5ad19a; }
+  .fbadge.warn { background:#2a2410; color:#e8c064; }
+  .fbadge.off { background:#1a2029; color:var(--ink3); }
+  .fbadge.alt { background:#1d2340; color:#9db2f5; }
+  .blendrow { margin-top:12px; padding-top:12px; font-size:13px;
+              border-top:1px solid var(--line); color:var(--ink2); }
+
   .hero { text-align:center; padding:22px 18px 18px; }
   .hero .when { font-size:12.5px; color:var(--ink3); font-weight:500; }
   .hero .mode { display:inline-block; font-size:11px; font-weight:700;
@@ -221,6 +240,38 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     html += `<p class="provtag">no prediction yet — run refresh_week.py</p>`;
   }
   html += `</div>`;
+
+  // What actually fed THIS prediction. Same "known limitations, deliberately
+  // not hidden" rule as the performance page, applied per fixture: factors
+  // that are switched off or unproven say so in the row rather than being
+  // quietly omitted.
+  if (p && p.factors && p.factors.length) {
+    const BADGE = {
+      validated:         ['ok',   'improves calibration'],
+      reference:         ['warn', 'shown for reference, not proven to improve accuracy'],
+      fallback:          ['warn', 'fallback — incomplete data'],
+      disabled:          ['off',  'switched off — did not improve calibration'],
+      unavailable:       ['off',  'unavailable for this fixture'],
+      'separate-output': ['alt',  'separate output — not the model\'s own number'],
+    };
+    html += `<div class="card"><h2>What fed this prediction</h2>
+      <table class="factors">` +
+      p.factors.map(f => {
+        const [cls, tip] = BADGE[f.status] || ['warn', f.status];
+        return `<tr class="${f.active ? '' : 'inactive'}">
+          <td class="fname">${f.name}</td>
+          <td class="feff">${f.effect}${f.detail
+            ? `<span class="fdet">${f.detail}</span>` : ''}</td>
+          <td><span class="fbadge ${cls}" title="${tip}">${f.status}</span></td>
+        </tr>`;
+      }).join('') + `</table>`;
+    if (p.blend)
+      html += `<div class="blendrow"><b>Model + market blend:</b>
+        ${pct(p.blend.p_home)} / ${pct(p.blend.p_draw)} / ${pct(p.blend.p_away)}
+        <span class="fdet">Separate output. The headline figures above are the
+        model unassisted — the blend is never folded into them.</span></div>`;
+    html += `</div>`;
+  }
 
   if (p) {
     const N = 6;

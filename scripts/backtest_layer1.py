@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import connect
 from models.backtest import load_matches, run_backtest, metrics, calibration_table
+from models.config import TRAIN_SEASONS, make_model
 
 OUT = ROOT / "data" / "backtests"
 
@@ -17,8 +18,9 @@ OUT = ROOT / "data" / "backtests"
 def main():
     conn = connect()
     df = load_matches(conn)
+    df = df[df["season"].isin(TRAIN_SEASONS)]
     print(f"training pool: {len(df)} matches, seasons {sorted(df.season.unique())}")
-    bt = run_backtest(df, target_season="2526")
+    bt = run_backtest(df, target_season="2526", make_model=make_model)
     OUT.mkdir(parents=True, exist_ok=True)
     bt.to_csv(OUT / "layer1_season_avg_2526.csv", index=False)
 

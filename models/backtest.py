@@ -26,7 +26,9 @@ from models.dixon_coles import DixonColes
 def load_matches(conn):
     return pd.read_sql_query(
         """SELECT m.id, m.season, m.date, h.name AS home, a.name AS away,
-                  m.fthg, m.ftag, m.ftr
+                  m.fthg, m.ftag, m.ftr, m.hthg, m.htag, m.htr,
+                  m.home_xg, m.away_xg,
+                  m.odds_home, m.odds_draw, m.odds_away
            FROM matches m
            JOIN teams h ON h.id = m.home_team_id
            JOIN teams a ON a.id = m.away_team_id
@@ -42,10 +44,13 @@ def promoted_prior(model):
 
 
 def run_backtest(df, target_season, xg_multipliers=None, refit_every=7,
-                 min_train=380):
+                 min_train=380, make_model=None):
     """xg_multipliers: optional callable (row, model) -> (lam_mult, mu_mult)
     letting lineup/fatigue/travel layers plug into the same harness.
-    refit_every: refit cadence in days (7 = roughly each gameweek)."""
+    refit_every: refit cadence in days (7 = roughly each gameweek).
+    make_model: zero-arg factory returning a fresh, configured DixonColes
+    (used by the accuracy-pass variants to vary xi / blend_w)."""
+    make_model = make_model or DixonColes
     target = df[df["season"] == target_season].sort_values("date")
     records = []
     model, last_fit = None, None
@@ -56,7 +61,7 @@ def run_backtest(df, target_season, xg_multipliers=None, refit_every=7,
             train = df[pd.to_datetime(df["date"]) < date]
             if len(train) < min_train:
                 continue
-            model = DixonColes().fit(train.to_dict("records"), as_of=date)
+            model = make_model().fit(train.to_dict("records"), as_of=date)
             last_fit = date
 
         flagged = False
@@ -77,6 +82,11 @@ def run_backtest(df, target_season, xg_multipliers=None, refit_every=7,
             "p_home": probs[0], "p_draw": probs[1], "p_away": probs[2],
             "actual": actual, "pred": int(np.argmax(probs)),
             "provisional_rating": flagged,
+            # carried through so market-blend and situational variants can be
+            # scored off the same frame without a second walk-forward pass
+            "odds_home": row.get("odds_home"), "odds_draw": row.get("odds_draw"),
+            "odds_away": row.get("odds_away"),
+            "hthg": row.get("hthg"), "htag": row.get("htag"),
         })
     return pd.DataFrame(records)
 

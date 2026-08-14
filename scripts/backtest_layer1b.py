@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import connect
 from models.backtest import load_matches, run_backtest, metrics, calibration_table
+from models.config import TRAIN_SEASONS, make_model
 from models.player_ratings import RatingBook
 from models.lineup import lineup_multiplier
 from models.travel import travel_multiplier, rest_days, congestion_multipliers
@@ -23,6 +24,7 @@ TARGET, RATING_SOURCE = "2526", "2425"
 def main():
     conn = connect()
     df = load_matches(conn)
+    df = df[df["season"].isin(TRAIN_SEASONS)]
     book = RatingBook(conn, RATING_SOURCE)
     tid = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM teams")}
     coords = {r["id"]: (r["lat"], r["lon"])
@@ -53,7 +55,8 @@ def main():
                                            rest_days(conn, a, date))
         return lam_mult * hm, mu_mult * am
 
-    bt = run_backtest(df, TARGET, xg_multipliers=multipliers)
+    bt = run_backtest(df, TARGET, xg_multipliers=multipliers,
+                      make_model=make_model)
     OUT.mkdir(parents=True, exist_ok=True)
     bt.to_csv(OUT / "layer1_lineup_weighted_2526.csv", index=False)
 

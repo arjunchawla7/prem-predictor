@@ -110,7 +110,23 @@ fetch('/api/performance').then(r => r.json()).then(d => {
   <ul>
    <li>Lineup/fatigue/travel weighting did <strong>not</strong> improve
    calibration on 2025-26; kept for what-if analysis.</li>
-   <li>Layer 2 style adjustment: marginal (Δlogloss ≈ −0.001), within noise.</li>
+   <li>Layer 2 style adjustment is <strong>switched off</strong>. It used to
+   help marginally, but against the corrected Layer 1 it costs accuracy
+   (.466 vs .487) — most likely it was compensating for the unshrunk ratings
+   and now double-counts a correction Layer 1 already makes.</li>
+   <li><strong>A draw is never the model's top pick.</strong> A Poisson
+   scoreline grid caps draw probability near 30% while draws are ~27% of
+   results, so roughly a quarter of matches cannot be called correctly by
+   argmax. This is the largest single component of the accuracy ceiling and is
+   structural, not a tuning problem.</li>
+   <li>Best pure-model accuracy on the 2025-26 holdout is <strong>48.7%</strong>.
+   For scale, bookmakers' closing odds — the strongest public predictor
+   available — score 49.5% on the same 380 matches. Treat 50%+ unassisted
+   claims with suspicion.</li>
+   <li>Situational "records" (e.g. a team's half-time-lead record) are measured
+   but <strong>none feeds a prediction</strong>: none beat its league base rate
+   once team strength was controlled for, and half-time state is not knowable
+   before kickoff regardless.</li>
    <li>Fatigue uses league minutes only — European/cup midweeks are invisible.</li>
    <li>No true defensive stats; defender ratings proxy from team goals
    conceded + xG buildup.</li>

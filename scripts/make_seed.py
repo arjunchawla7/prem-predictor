@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import DATA_DIR
+from models.config import BACKTEST_FILES
 
 SEED = ROOT / "data" / "seed"
 
@@ -31,11 +32,23 @@ def main():
     bt_dst = SEED / "backtests"
     if bt_src.exists():
         bt_dst.mkdir(exist_ok=True)
-        n = 0
-        for f in bt_src.glob("*.csv"):
-            shutil.copy2(f, bt_dst / f.name)
+        # Only the frames the performance page serves. data/backtests/ also
+        # accumulates one CSV per accuracy-pass variant, and those have no
+        # business in a git-tracked deploy bundle.
+        n = missing = 0
+        for fn in BACKTEST_FILES.values():
+            src = bt_src / fn
+            if not src.exists():
+                print(f"  MISSING {fn} — run the backtest scripts")
+                missing += 1
+                continue
+            shutil.copy2(src, bt_dst / fn)
             n += 1
-        print(f"copied {n} backtest CSVs")
+        for stale in bt_dst.glob("*.csv"):
+            if stale.name not in BACKTEST_FILES.values():
+                stale.unlink()
+                print(f"  removed stale {stale.name}")
+        print(f"copied {n} backtest CSVs" + (f", {missing} missing" if missing else ""))
 
 
 if __name__ == "__main__":

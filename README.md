@@ -4,10 +4,16 @@ Local Premier League match-prediction tool for the 2026-27 season.
 Python backend + SQLite + small Flask web frontend. Personal project —
 built for working end-to-end, not scale.
 
-**Honest expectations:** the model backtests at ~47% exact-outcome accuracy
-(uniform guessing = 33%, bookmakers ≈ 53-55%) with decent calibration. It
-does not beat the market and is not supposed to. The performance page keeps
-this in your face on purpose.
+**Honest expectations:** the model backtests at **48.7%** exact-outcome
+accuracy on 2025-26 (uniform guessing = 33%). It does not beat the market and
+is not supposed to: bookmakers' closing odds score **49.5%** on the same 380
+matches, which is the practical ceiling for this kind of model rather than a
+number to chase. The performance page keeps this in your face on purpose.
+
+Two structural limits worth knowing before reading any accuracy figure:
+a draw is *never* the model's top pick (a Poisson grid caps draw probability
+near 30% while draws are ~27% of results), and situational "records" are
+measured but never fed into a prediction — see `models/situational.py`.
 
 ## Setup
 
@@ -66,7 +72,11 @@ Without a key the odds pull skips gracefully and the UI says so.
 - **Layer 1 — Dixon-Coles** (`models/dixon_coles.py`): per-team attack/defence
   strengths + home advantage + low-score correction, maximum-likelihood fit
   (scipy) with exponential time-decay weighting. Full scoreline grid via
-  Poisson; W/D/L from the grid. Math commented in the file.
+  Poisson; W/D/L from the grid. Math commented in the file. Fitted against
+  **xG rather than goals**, with the ratings **shrunk toward the league
+  average** — both settled by backtest, see below. Settings live in
+  `models/config.py`, shared by the live predictor and every backtest so the
+  performance page always describes the model that is actually predicting.
 - **Player ratings** (`models/player_ratings.py`): previous-season understat
   per-90s, z-scored within position group, quintile tiers 1-5. Low-minute
   players get a flagged provisional average, never an invented number.
@@ -78,7 +88,12 @@ Without a key the odds pull skips gracefully and the UI says so.
   discount) + short-rest comparison (2%).
 - **Layer 2 — style** (`models/style.py`): k-means style buckets from shot
   proxies; matchup adjustment learned from *Layer-1 residuals* (so it can't
-  just rediscover "good beats bad"); capped ±0.15 xG.
+  just rediscover "good beats bad"); capped ±0.15 xG. **Currently switched
+  off** (`STYLE_ENABLED`) — it costs accuracy against the corrected Layer 1.
+- **Situational records** (`models/situational.py`): measures claimed team
+  "records" against the league base rate for the same situation, against the
+  model's own expectation, and against binomial noise. Nothing here feeds a
+  prediction; see below.
 - **Team profile** (`models/formation.py`): preferred formation *derived*
   from the position codes of each side's real starting XIs over its last 30
   matches (4-2-3-1, 3-5-2, …), reported with its share and the runner-up
@@ -88,21 +103,67 @@ Without a key the odds pull skips gracefully and the UI says so.
 
 ### Validation findings (2025-26 walk-forward backtest)
 
-| variant | accuracy | Brier | log-loss |
-|---|---|---|---|
-| Layer 1 season-average | 46.6% | 0.6188 | 1.0569 |
-| + lineup/fatigue/travel | 46.6% | 0.6186 | 1.0566 |
-| + Layer 2 style | 46.8% | 0.6184 | 1.0563 |
+Run `python scripts/accuracy_pass.py` to reproduce; results land in
+`data/backtests/accuracy_pass.csv`.
 
-**Neither addition meaningfully improved calibration.** Both are kept in the
-code (and useful for what-if lineup analysis), but they are not currently
-earning their keep — re-check on 2026-27 data as it accumulates.
+| variant | accuracy | Brier | log-loss | verdict |
+|---|---|---|---|---|
+| Layer 1, goals target, unshrunk (was shipping) | 46.6% | 0.6188 | 1.0607 | — |
+| + rating shrinkage (`PRIOR_STRENGTH=5`) | 47.1% | 0.6151 | 1.0248 | **kept** |
+| + xG fitting target (`BLEND_W=0`) | 47.9% | 0.6150 | 1.0247 | **kept** |
+| **both together (ships now)** | **48.7%** | **0.6142** | **1.0237** | **kept** |
+| goals/xG blends (0.25 / 0.5 / 0.75) | 47.1–47.6% | 0.6149–0.6168 | 1.0250–1.0314 | discarded |
+| time decay xi ∈ {.0003,.0005,.0018,.003,.005} | 46.3–47.1% | 0.6183–0.6241 | 1.0576–1.0710 | discarded — 0.001 already best |
+| 7 training seasons instead of 4 | 46.8% | 0.6211 | 1.0590 | discarded |
+| + Layer 2 style | 46.6% | 0.6169 | 1.0273 | **switched off** |
+| *market closing odds alone* | *49.5%* | *0.6077* | *1.0118* | *reference, not a model* |
+| model + market 50/50 blend | 49.5% | 0.6085 | 1.0148 | kept, **labeled separately** |
+
+Notes on what these numbers mean:
+
+- **The single biggest win was a bug, not a feature.** Teams with one or two
+  matches in the training window were unidentifiable and fitted to the
+  parameter boundary. Sunderland, one match into 2025-26, reached
+  `defence=0.0001` and priced Burnley to win at 4.5e-6 — that one fixture
+  carried 3.6% of the season's entire log-loss. `promoted_prior` only covered
+  teams with *zero* history. Shrinkage fixes the 1-2 match case.
+- **The xi sweep was re-run after that fix**, because the original sweep was
+  measured with the pathology still in the frame. 0.001 survived.
+- **Lineup/fatigue/travel remains unproven** (48.7% either way) and is still
+  labeled as such on the fixture page.
+- **Do not read 50%+ into any of this.** The market itself manages 49.5% here.
+  Variants were scored once against this holdout and kept or discarded; none
+  were iterated against it to push the number up.
+
+### Situational "records"
+
+`python scripts/situational_report.py` measures a claimed pattern properly.
+Worked example — Man Utd leading at half-time at Old Trafford, computed over
+2019-2026, not quoted from anecdote:
+
+| | n | rate | league (other clubs) | lift | p |
+|---|---|---|---|---|---|
+| win | 55 | 81.8% | 75.3% | +6.5pp | 0.35 |
+| not lose | 55 | **100%** | 92.0% | +8.0pp | 0.02 |
+
+Genuinely unbeaten in 55 — and still not usable: Liverpool are 74/74 and
+Leicester 26/26 on the same measure, the league base rate is already 92%, and
+a half-time scoreline is not knowable before kickoff. The framework also
+requires beating the *model's own expectation*, not just the league average:
+Arsenal's home London-derby record looks like +27.9pp (p=0.001) against the
+league rate but is +0.0pp (z=−0.3) once Arsenal's rating is accounted for.
+**No situational pattern currently qualifies as a model input.**
 
 ## Data sources & known gaps
 
 - Results/shots/cards: football-data.co.uk **via its GitHub mirror**
-  (`datasets/football-datasets`) — the origin site is blocked as "Gambling"
+  (`datasets/football-datasets`) — the origin site *was* blocked as "Gambling"
   by the FortiGate firewall on this network. Same CSVs, same schema.
+- Market closing odds: football-data.co.uk **direct** (`scripts/pull_odds_history.py`).
+  The origin is reachable again, and it is the only source here carrying odds —
+  the GitHub mirror strips those columns, and the-odds-api serves only
+  *upcoming* fixtures, so neither can back a market backtest. Seasons
+  2019-20..2025-26, all 2660 matches priced.
 - xG, player minutes/rosters/position codes: understat.com (internal JSON
   API; needs `X-Requested-With` header). Note: understat's `roster_in` is
   **not** a minute and reads "0" for substitutes too — starters are the
@@ -128,8 +189,10 @@ certifi. Regenerate the bundle if the firewall's CA rotates.
 
 ```
 backend/   db.py (schema), predict.py (engine), app.py (Flask)
-models/    dixon_coles, player_ratings, fatigue, lineup, travel, style, backtest
-scripts/   data pulls, refresh_week, rebuild_confirmed, backtests, sweeps
+models/    config (settled settings), dixon_coles, player_ratings, fatigue,
+           lineup, travel, style, formation, situational, backtest, evaluate
+scripts/   data pulls, refresh_week, rebuild_confirmed, backtests, sweeps,
+           accuracy_pass, situational_report, pull_odds_history
 frontend/  index.html (gameweek), performance.html
 data/      prem.db, raw CSVs/JSON cache, backtests/, ca_bundle.pem
 tests/     model sanity tests (pytest)

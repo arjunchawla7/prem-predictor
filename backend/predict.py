@@ -18,7 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.db import connect
-from models.dixon_coles import DixonColes
+from models.config import (MARKET_BLEND_W, STYLE_ENABLED, TRAIN_SEASONS,
+                           make_model)
 from models.backtest import promoted_prior
 from models.player_ratings import RatingBook
 from models.lineup import lineup_multiplier, ideal_xi
@@ -34,10 +35,13 @@ class Predictor:
     def __init__(self, conn=None):
         self.conn = conn or connect()
         rows = self.conn.execute(
-            """SELECT m.date, h.name AS home, a.name AS away, m.fthg, m.ftag
-               FROM matches m JOIN teams h ON h.id=m.home_team_id
-               JOIN teams a ON a.id=m.away_team_id""").fetchall()
-        self.model = DixonColes().fit([dict(r) for r in rows])
+            f"""SELECT m.date, h.name AS home, a.name AS away, m.fthg, m.ftag,
+                       m.home_xg, m.away_xg
+                FROM matches m JOIN teams h ON h.id=m.home_team_id
+                JOIN teams a ON a.id=m.away_team_id
+                WHERE m.season IN ({','.join('?' * len(TRAIN_SEASONS))})""",
+            TRAIN_SEASONS).fetchall()
+        self.model = make_model().fit([dict(r) for r in rows])
         self.book = RatingBook(self.conn, RATING_SOURCE)
         self.names = {r["id"]: r["name"] for r in
                       self.conn.execute("SELECT id, name FROM teams")}
@@ -63,6 +67,49 @@ class Predictor:
         return ideal_xi(self.conn, team_id, LINEUP_SOURCE_FALLBACK,
                         "2026-07-01")
 
+    def _market_blend(self, fixture_id, probs, factors):
+        """Model + market average, as a SEPARATE output.
+
+        Never replaces the model's own probabilities and is never folded into
+        them — the whole point of tracking unassisted accuracy is that the
+        model's number stays the model's number. Absent when the fixture has no
+        odds, which is the normal state until ODDS_API_KEY is set.
+        """
+        row = self.conn.execute(
+            """SELECT odds_home, odds_draw, odds_away, bookmaker FROM market_odds
+               WHERE fixture_id=? ORDER BY ts DESC LIMIT 1""",
+            (fixture_id,)).fetchone()
+        if not row or not all(row[c] for c in
+                              ("odds_home", "odds_draw", "odds_away")):
+            factors.append({
+                "name": "Model + market blend",
+                "active": False,
+                "effect": "not applied",
+                "detail": "no market odds for this fixture "
+                          "(needs ODDS_API_KEY)",
+                "status": "unavailable",
+            })
+            return None
+
+        inv = [1 / row["odds_home"], 1 / row["odds_draw"], 1 / row["odds_away"]]
+        s = sum(inv)
+        implied = [x / s for x in inv]          # overround removed
+        w = MARKET_BLEND_W
+        mixed = [w * p + (1 - w) * q for p, q in zip(probs, implied)]
+        factors.append({
+            "name": "Model + market blend",
+            "active": True,
+            "effect": f"{int(w * 100)}/{int((1 - w) * 100)} model/market — "
+                      "reported separately, not part of the model's own number",
+            "detail": f"{row['bookmaker'] or 'market'} implied "
+                      f"{implied[0]:.0%}/{implied[1]:.0%}/{implied[2]:.0%}",
+            "status": "separate-output",
+        })
+        return {"p_home": round(mixed[0], 4), "p_draw": round(mixed[1], 4),
+                "p_away": round(mixed[2], 4),
+                "market_implied": [round(x, 4) for x in implied],
+                "weight_model": w, "bookmaker": row["bookmaker"]}
+
     def predict_fixture(self, fixture_id, tag="provisional",
                         home_lineup=None, away_lineup=None, store=True):
         f = self.conn.execute("SELECT * FROM fixtures WHERE id=?",
@@ -71,6 +118,10 @@ class Predictor:
             raise ValueError(f"no fixture {fixture_id}")
         as_of = f["date"] or datetime.now(timezone.utc).isoformat()
         notes, partial = [], False
+        # What actually moved this specific prediction. Each entry is
+        # (name, active, effect, status) — see FACTOR STATUSES in
+        # factor_list() for what the status strings mean.
+        factors = []
 
         hk, hp = self._team_key(f["home_team_id"])
         ak, ap = self._team_key(f["away_team_id"])
@@ -78,6 +129,31 @@ class Predictor:
             notes.append("promoted-team prior rating used "
                          "(no top-flight history in training window)")
             partial = True
+
+        factors.append({
+            "name": "Home advantage",
+            "active": True,
+            "effect": f"x{self.model.gamma:.3f} on home expected goals",
+            "detail": f"fitted γ = {self.model.gamma:.4f} "
+                      f"({(self.model.gamma - 1) * 100:.1f}% uplift)",
+            "status": "validated",
+        })
+        factors.append({
+            "name": "Rating source",
+            "active": True,
+            "effect": "xG-fitted attack/defence, shrunk toward league average",
+            "detail": f"trained on {'/'.join(TRAIN_SEASONS)}; "
+                      f"prior strength {self.model.prior_strength:g}",
+            "status": "validated",
+        })
+        if hp or ap:
+            factors.append({
+                "name": "Promoted-team prior",
+                "active": True,
+                "effect": "rating borrowed from the 3 weakest fitted teams",
+                "detail": "no top-flight history in the training window",
+                "status": "fallback",
+            })
 
         # lineups
         if tag == "provisional":
@@ -90,6 +166,14 @@ class Predictor:
                 notes.append(f"{'home' if is_home else 'away'} lineup "
                              "unavailable — season-average rating used")
                 partial = True
+                factors.append({
+                    "name": f"Lineup weighting "
+                            f"({'home' if is_home else 'away'})",
+                    "active": False,
+                    "effect": "not applied",
+                    "detail": "no XI available — season-average rating used",
+                    "status": "unavailable",
+                })
                 continue
             mult, det = lineup_multiplier(self.conn, self.book, team_id, xi,
                                           str(as_of), CURRENT_SEASON)
@@ -101,6 +185,14 @@ class Predictor:
                 lam_mult *= mult
             else:
                 mu_mult *= mult
+            factors.append({
+                "name": f"Lineup weighting ({'home' if is_home else 'away'})",
+                "active": True,
+                "effect": f"x{mult:.3f} on "
+                          f"{'home' if is_home else 'away'} expected goals",
+                "detail": "player ratings from the previous season's minutes",
+                "status": "reference",
+            })
 
         # travel + congestion
         tm, dist, tpartial = travel_multiplier(
@@ -115,14 +207,51 @@ class Predictor:
         lam_mult *= hm
         mu_mult *= am
         notes += cflags
+        if not tpartial:
+            factors.append({
+                "name": "Travel",
+                "active": True,
+                "effect": f"x{tm:.3f} on away expected goals",
+                "detail": None if dist is None else f"{round(dist)} km away trip",
+                "status": "reference",
+            })
+        if hm != 1.0 or am != 1.0:
+            factors.append({
+                "name": "Fixture congestion",
+                "active": True,
+                "effect": f"x{hm:.3f} home / x{am:.3f} away",
+                "detail": f"rest days: home {hr}, away {ar}",
+                "status": "reference",
+            })
 
-        # Layer 1 + multipliers, then Layer 2 nudge
+        # Layer 1 + multipliers, then the Layer 2 nudge if it is switched on
         lam, mu = self.model.expected_goals(hk, ak)
         lam, mu = lam * lam_mult, mu * mu_mult
-        lam, mu = self.style.adjust(f["home_team_id"], f["away_team_id"], lam, mu)
+        if STYLE_ENABLED:
+            slam, smu = self.style.adjust(f["home_team_id"], f["away_team_id"],
+                                          lam, mu)
+            if (slam, smu) != (lam, mu):
+                factors.append({
+                    "name": "Style matchup (Layer 2)",
+                    "active": True,
+                    "effect": f"xG {lam:.2f}/{mu:.2f} → {slam:.2f}/{smu:.2f}",
+                    "detail": "pace/pressing bucket pairing",
+                    "status": "reference",
+                })
+            lam, mu = slam, smu
+        else:
+            factors.append({
+                "name": "Style matchup (Layer 2)",
+                "active": False,
+                "effect": "not applied",
+                "detail": "cost accuracy against the current Layer 1 "
+                          "(.466 vs .487) — switched off",
+                "status": "disabled",
+            })
 
         grid = self.model.score_grid(lam, mu)
         p_h, p_d, p_a = self.model.outcome_probs(lam, mu)
+        blend = self._market_blend(fixture_id, (p_h, p_d, p_a), factors)
 
         pred = {
             "fixture_id": fixture_id, "tag": tag,
@@ -133,19 +262,24 @@ class Predictor:
             "home_lineup": home_lineup, "away_lineup": away_lineup,
             "notes": "; ".join(notes), "partial_data": int(partial),
             "travel_km": None if dist is None else round(dist),
+            "factors": factors,
+            "blend": blend,
         }
         if store:
             self.conn.execute(
                 """INSERT INTO predictions (fixture_id, created_at, tag,
                      home_xg, away_xg, p_home, p_draw, p_away, score_grid,
-                     home_lineup, away_lineup, notes, partial_data)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     home_lineup, away_lineup, notes, partial_data, factors,
+                     blend_home, blend_draw, blend_away)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (fixture_id, datetime.now(timezone.utc).isoformat(), tag,
                  pred["home_xg"], pred["away_xg"], pred["p_home"],
                  pred["p_draw"], pred["p_away"], json.dumps(pred["grid"]),
                  json.dumps(home_lineup) if home_lineup else None,
                  json.dumps(away_lineup) if away_lineup else None,
-                 pred["notes"], pred["partial_data"]))
+                 pred["notes"], pred["partial_data"], json.dumps(factors),
+                 (blend or {}).get("p_home"), (blend or {}).get("p_draw"),
+                 (blend or {}).get("p_away")))
             self.conn.commit()
         return pred
 

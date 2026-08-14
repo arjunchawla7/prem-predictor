@@ -176,6 +176,17 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     # understat slot code for that appearance (GK/DC/DL/DMC/AMC/FW/...),
     # which is what formation shapes are derived from
     add_col("player_match_minutes", "slot_pos", "TEXT")
+    # market closing odds per played match (scripts/pull_odds_history.py);
+    # market_odds holds pre-match quotes for UPCOMING fixtures instead.
+    for c in ("odds_home", "odds_draw", "odds_away"):
+        add_col("matches", c, "REAL")
+    # what actually fed each stored prediction (JSON list), so an old row can
+    # still be read back correctly after the model configuration changes
+    add_col("predictions", "factors", "TEXT")
+    # model+market blend, kept in its own columns so it can never be mistaken
+    # for the model's own probabilities
+    for c in ("blend_home", "blend_draw", "blend_away"):
+        add_col("predictions", c, "REAL")
     return conn
 
 

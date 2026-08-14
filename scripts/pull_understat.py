@@ -28,7 +28,8 @@ from backend.db import connect, log_pull
 
 CACHE = ROOT / "data" / "raw" / "understat"
 # understat start-year -> our season label
-SEASONS = {"2022": "2223", "2023": "2324", "2024": "2425", "2025": "2526"}
+SEASONS = {"2019": "1920", "2020": "2021", "2021": "2122",
+           "2022": "2223", "2023": "2324", "2024": "2425", "2025": "2526"}
 CURRENT_US, CURRENT_SEASON = "2026", "2627"
 ROSTER_SEASONS = ["2024", "2025"]     # player-level data: last 2 seasons
 DELAY = 0.35                          # be polite between uncached requests
@@ -53,10 +54,24 @@ def get_json(path: str, cache_name: str, refresh: bool = False):
     return data
 
 
+# understat spellings that differ from the football-data.co.uk name we seed
+# teams under. Only needed where the two disagree.
+US_ALIAS = {"West Bromwich Albion": "West Brom"}
+
+
 def team_id_by_us(conn, us_name: str):
     row = conn.execute("SELECT id FROM teams WHERE understat_name=?",
                        (us_name,)).fetchone()
     if row:
+        return row["id"]
+    # Same club already seeded from football-data.co.uk under an identical
+    # spelling but with no understat_name yet (older seasons bring these in):
+    # adopt the existing row rather than colliding on teams.name UNIQUE.
+    row = conn.execute("SELECT id FROM teams WHERE name=?",
+                       (US_ALIAS.get(us_name, us_name),)).fetchone()
+    if row:
+        conn.execute("UPDATE teams SET understat_name=? WHERE id=?",
+                     (us_name, row["id"]))
         return row["id"]
     # Promoted team not in the seed list: insert without coordinates.
     cur = conn.execute(
