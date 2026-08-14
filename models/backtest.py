@@ -23,16 +23,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models.dixon_coles import DixonColes
 
 
-def load_matches(conn):
+def load_matches(conn, divisions=("E0",)):
+    """Match frame for fitting/backtesting.
+
+    Defaults to top-flight only. Championship rows exist in the same table
+    (tagged division='E1') but carry no xG and are played against a different
+    standard of opposition, so they are opt-in rather than swept up by
+    anything that happens to read `matches`.
+    """
+    placeholders = ",".join("?" * len(divisions))
     return pd.read_sql_query(
-        """SELECT m.id, m.season, m.date, h.name AS home, a.name AS away,
-                  m.fthg, m.ftag, m.ftr, m.hthg, m.htag, m.htr,
-                  m.home_xg, m.away_xg,
-                  m.odds_home, m.odds_draw, m.odds_away
-           FROM matches m
-           JOIN teams h ON h.id = m.home_team_id
-           JOIN teams a ON a.id = m.away_team_id
-           ORDER BY m.date""", conn)
+        f"""SELECT m.id, m.season, m.date, m.division,
+                   h.name AS home, a.name AS away,
+                   m.fthg, m.ftag, m.ftr, m.hthg, m.htag, m.htr,
+                   m.home_xg, m.away_xg,
+                   m.odds_home, m.odds_draw, m.odds_away
+            FROM matches m
+            JOIN teams h ON h.id = m.home_team_id
+            JOIN teams a ON a.id = m.away_team_id
+            WHERE COALESCE(m.division, 'E0') IN ({placeholders})
+            ORDER BY m.date""", conn, params=list(divisions))
 
 
 def promoted_prior(model):
@@ -44,12 +54,17 @@ def promoted_prior(model):
 
 
 def run_backtest(df, target_season, xg_multipliers=None, refit_every=7,
-                 min_train=380, make_model=None):
+                 min_train=380, make_model=None, prior_fn=None,
+                 on_refit=None):
     """xg_multipliers: optional callable (row, model) -> (lam_mult, mu_mult)
     letting lineup/fatigue/travel layers plug into the same harness.
     refit_every: refit cadence in days (7 = roughly each gameweek).
     make_model: zero-arg factory returning a fresh, configured DixonColes
-    (used by the accuracy-pass variants to vary xi / blend_w)."""
+    (used by the accuracy-pass variants to vary xi / blend_w).
+    prior_fn: (model, team_name) -> (attack, defence) for a team the fit has
+    never seen. Defaults to promoted_prior, the weakest-3 average.
+    on_refit: called with (model, date) after each refit — lets a caller build
+    something extra from the same training window (e.g. a cross-league fit)."""
     make_model = make_model or DixonColes
     target = df[df["season"] == target_season].sort_values("date")
     records = []
@@ -63,11 +78,14 @@ def run_backtest(df, target_season, xg_multipliers=None, refit_every=7,
                 continue
             model = make_model().fit(train.to_dict("records"), as_of=date)
             last_fit = date
+            if on_refit is not None:
+                on_refit(model, date)
 
         flagged = False
         for t in (row["home"], row["away"]):
             if t not in model.attack:
-                model.attack[t], model.defence[t] = promoted_prior(model)
+                model.attack[t], model.defence[t] = (
+                    prior_fn(model, t) if prior_fn else promoted_prior(model))
                 flagged = True
 
         lam_mult = mu_mult = 1.0

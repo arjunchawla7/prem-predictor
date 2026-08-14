@@ -180,6 +180,13 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     # market_odds holds pre-match quotes for UPCOMING fixtures instead.
     for c in ("odds_home", "odds_draw", "odds_away"):
         add_col("matches", c, "REAL")
+    # Which competition a match belongs to: 'E0' Premier League, 'E1'
+    # Championship. Everything loaded before this column existed is top-flight,
+    # so E0 is the right default. Second-tier rows are NOT interchangeable with
+    # top-flight ones — same goals, different standard of opposition, and no xG
+    # anywhere — so anything reading `matches` for model fitting has to filter
+    # on this rather than assume one league.
+    add_col("matches", "division", "TEXT DEFAULT 'E0'")
     # what actually fed each stored prediction (JSON list), so an old row can
     # still be read back correctly after the model configuration changes
     add_col("predictions", "factors", "TEXT")

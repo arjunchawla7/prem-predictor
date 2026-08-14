@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.db import connect
-from models.config import (MARKET_BLEND_W, STYLE_ENABLED, TRAIN_SEASONS,
-                           make_model)
+from models.config import (CHAMPIONSHIP_PRIOR, MARKET_BLEND_W, STYLE_ENABLED,
+                           TRAIN_SEASONS, make_model)
 from models.backtest import promoted_prior
 from models.player_ratings import RatingBook
 from models.lineup import lineup_multiplier, ideal_xi
@@ -39,9 +39,11 @@ class Predictor:
                        m.home_xg, m.away_xg
                 FROM matches m JOIN teams h ON h.id=m.home_team_id
                 JOIN teams a ON a.id=m.away_team_id
-                WHERE m.season IN ({','.join('?' * len(TRAIN_SEASONS))})""",
+                WHERE COALESCE(m.division, 'E0') = 'E0'
+                  AND m.season IN ({','.join('?' * len(TRAIN_SEASONS))})""",
             TRAIN_SEASONS).fetchall()
         self.model = make_model().fit([dict(r) for r in rows])
+        self._xl = False        # cross-league fit, built lazily on first need
         self.book = RatingBook(self.conn, RATING_SOURCE)
         self.names = {r["id"]: r["name"] for r in
                       self.conn.execute("SELECT id, name FROM teams")}
@@ -51,14 +53,37 @@ class Predictor:
                                    datetime.now(timezone.utc).date().isoformat(),
                                    self.names)
 
+    def _crossleague(self):
+        """Championship-scale ratings, built once and only when needed."""
+        if self._xl is not False:
+            return self._xl
+        self._xl = None
+        if CHAMPIONSHIP_PRIOR:
+            from models.crossleague import aligned_pooled_model
+            from models.backtest import load_matches
+            pooled = load_matches(self.conn, ("E0", "E1"))
+            pooled = pooled[pooled["season"].isin(TRAIN_SEASONS + ["2425"])]
+            self._xl = aligned_pooled_model(pooled.to_dict("records"),
+                                            self.model, make_model)
+        return self._xl
+
     def _team_key(self, team_id):
-        """DC model key for a team; promoted prior + flag if unseen."""
+        """DC model key for a team; prior + flag if the fit has never seen it.
+
+        Championship results first, generic weakest-3 prior second. Either way
+        the caller gets told the rating is provisional.
+        """
         name = self.names[team_id]
-        if name not in self.model.attack:
-            self.model.attack[name], self.model.defence[name] = \
-                promoted_prior(self.model)
-            return name, True
-        return name, False
+        if name in self.model.attack:
+            return name, None
+        xl = self._crossleague()
+        if xl is not None and name in xl.attack:
+            self.model.attack[name] = xl.attack[name]
+            self.model.defence[name] = xl.defence[name]
+            return name, "championship"
+        self.model.attack[name], self.model.defence[name] = \
+            promoted_prior(self.model)
+        return name, "weakest3"
 
     def _auto_lineup(self, team_id, as_of):
         xi = ideal_xi(self.conn, team_id, CURRENT_SEASON, as_of)
@@ -126,8 +151,14 @@ class Predictor:
         hk, hp = self._team_key(f["home_team_id"])
         ak, ap = self._team_key(f["away_team_id"])
         if hp or ap:
-            notes.append("promoted-team prior rating used "
-                         "(no top-flight history in training window)")
+            kinds = {k for k in (hp, ap) if k}
+            if "championship" in kinds:
+                notes.append("Championship-derived rating used for a promoted "
+                             "team — cross-league estimate, rougher than a "
+                             "top-flight rating")
+            if "weakest3" in kinds:
+                notes.append("promoted-team prior rating used "
+                             "(no top-flight history in training window)")
             partial = True
 
         factors.append({
@@ -157,13 +188,24 @@ class Predictor:
                           "improves calibration, does not change the pick",
                 "status": "validated",
             })
-        if hp or ap:
+        for side, kind, tid in (("home", hp, f["home_team_id"]),
+                                ("away", ap, f["away_team_id"])):
+            if not kind:
+                continue
+            champ = kind == "championship"
             factors.append({
-                "name": "Promoted-team prior",
+                "name": f"Promoted-team rating ({side})",
                 "active": True,
-                "effect": "rating borrowed from the 3 weakest fitted teams",
-                "detail": "no top-flight history in the training window",
-                "status": "fallback",
+                "effect": ("Championship form, rescaled to the top flight"
+                           if champ else
+                           "rating borrowed from the 3 weakest fitted teams"),
+                "detail": (f"{self.names[tid]} has no top-flight history; "
+                           + ("second-tier results projected across divisions "
+                              "— a rougher estimate than a top-flight rating"
+                              if champ else
+                              "no second-tier record either, so a generic "
+                              "prior is all there is")),
+                "status": "cross-league" if champ else "fallback",
             })
 
         # lineups

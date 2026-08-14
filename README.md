@@ -241,3 +241,45 @@ gh repo create prem-predictor --private --source=. --push
 git remote add origin https://github.com/<you>/prem-predictor.git
 git push -u origin master
 ```
+
+### Championship (second-tier) data
+
+`scripts/pull_championship.py` loads E1 results from football-data.co.uk, so a
+promoted side can be rated from its actual second-tier form instead of a
+generic "average of the three weakest teams" prior. Rows are tagged
+`matches.division='E1'`; `load_matches()` returns top-flight only unless asked
+otherwise, and the live predictor filters to `E0` explicitly.
+
+**Championship rows are never in the training pool.** That was tested and is
+clearly worse (accuracy .4763 vs .4868, Brier .6201 vs .6123, same 380
+fixtures). They are used only to seed teams the top-flight fit has never seen,
+via one pooled fit rescaled onto the top-flight scale using the 25 clubs
+present in both.
+
+How good is the projection? The clubs that went up in 2025-26 are the only
+honest test — project them from Championship data alone, then compare against
+what they turned out to be:
+
+| team | projected atk/def | actual atk/def |
+|---|---|---|
+| Leeds | 1.135 / 1.058 | 1.048 / 1.207 |
+| Burnley | 0.886 / 0.985 | 0.767 / 1.570 |
+| Sunderland | 0.767 / 1.131 | 0.832 / 1.195 |
+| *generic weakest-3 prior* | *0.762 / 1.664* | — |
+
+Cross-league beats the generic prior on both axes (mean abs error: attack .090
+vs .120, defence .266 vs .340) but is **systematically optimistic about
+defence** — promoted teams concede more than the projection expects, badly so
+for Burnley. n=3, which is far too few to calibrate a correction without
+inventing one, so the bias is documented rather than fitted out.
+
+Known gaps, none of which this fixes:
+
+- **No xG.** Understat covers six top-flight leagues and 404s on the
+  Championship. E1 rows are goals-only, while the live model fits on xG — so
+  cross-league ratings come from a different target than top-flight ones.
+- **No lineups or player data.** football-data.co.uk carries results only.
+  Formation derivation and player ratings for a promoted side still have
+  nothing to work from, so the "not enough lineup data" fallback remains.
+- **No FBref.** This project has never scraped FBref, and FBref now sits
+  behind a Cloudflare bot challenge that returns 403 even for `robots.txt`.

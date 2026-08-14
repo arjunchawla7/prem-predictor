@@ -58,6 +58,20 @@ XI = 0.001
 # Refit DRAW_SCALE (scripts/draw_pass.py) as more completed seasons land.
 DRAW_SCALE = 1.0824
 
+# Rate promoted teams from their Championship results instead of the generic
+# "average of the three weakest teams" prior. ON, but on principle rather than
+# evidence: it changed exactly one match of 380 on the 2025-26 holdout, because
+# only Sunderland arrived with no top-flight history and the prior stopped
+# applying as soon as they had played. Direction was positive, one fixture is
+# not proof. It matters far more for 2026-27, where Coventry and Hull start
+# with no top-flight record at all.
+#
+# Note what was NOT adopted: putting Championship rows in the training pool
+# proper. That was measurable and clearly worse — accuracy .4763 vs .4868,
+# Brier .6201 vs .6123 — so E1 rows stay out of the fit and are used only to
+# seed teams the top-flight fit has never seen.
+CHAMPIONSHIP_PRIOR = True
+
 # Layer 2 style matchup adjustment, OFF.
 #
 # It used to earn its place (.4684 vs .4658 baseline). Re-run against the fixed
