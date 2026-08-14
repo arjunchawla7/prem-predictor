@@ -573,6 +573,16 @@ const FITS = {
 const COARSE = { GK: 'GK', LB: 'DEF', RB: 'DEF', CB: 'DEF', CDM: 'MID',
                  CM: 'MID', CAM: 'MID', LW: 'FWD', RW: 'FWD', ST: 'FWD' };
 
+/** How far up the pitch a position sits: 0 keeper, 3 attack. Used to place
+ *  players who fit nowhere as near their natural line as possible. */
+function lineOf(pos) {
+  const p = (pos || '').toUpperCase();
+  if (p === 'GK') return 0;
+  if (['LB','CB','RB','FB','LWB','RWB','DEF'].includes(p)) return 1;
+  if (['CDM','CM','CAM','LM','RM','MID'].includes(p)) return 2;
+  return 3;
+}
+
 /** How well a player suits a specific slot role. Higher is better, 0 = no. */
 function fitScore(player, role) {
   const dp = (player.detail_pos || '').toUpperCase();
@@ -675,9 +685,24 @@ function placeByFit(players, formationName) {
     slots[si] = p.id;
     usedSlot.add(si); usedPlayer.add(p.id);
   }
-  // whoever is still unplaced goes into whatever is still empty
+  // Whoever is still unplaced has no real fit anywhere left — an XI without a
+  // natural right-back still has to put someone there. Assign these by how far
+  // they are from the slot's line rather than in list order, so a spare
+  // striker takes the most advanced hole going instead of landing at
+  // left-back purely because that slot came first.
   const spare = left.filter(p => !usedPlayer.has(p.id));
-  return slots.map(s => s !== null ? s : (spare.length ? spare.shift().id : null));
+  const holes = slots.map((s, i) => s === null ? i : -1).filter(i => i >= 0);
+  const pairs2 = [];
+  holes.forEach(si => spare.forEach(p => pairs2.push(
+    { si, p, d: Math.abs(lineOf(p.detail_pos || p.position) - lineOf(roles[si])) })));
+  pairs2.sort((a, b) => a.d - b.d || (b.p.minutes || 0) - (a.p.minutes || 0));
+  const takenSlot = new Set(), takenP = new Set();
+  for (const { si, p } of pairs2) {
+    if (takenSlot.has(si) || takenP.has(p.id)) continue;
+    slots[si] = p.id;
+    takenSlot.add(si); takenP.add(p.id);
+  }
+  return slots;
 }
 
 function prefill(side, lineup) {
