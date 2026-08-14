@@ -90,14 +90,33 @@ def display_name(p) -> str:
 
 
 def find_player(conn, pulse_id, name, team_id):
-    """Locate an existing row for this squad member. Returns id or None."""
+    """Locate an existing row for this squad member. Returns id or None.
+
+    Every fallback below is a guess, and a wrong guess is expensive: it does
+    not create a duplicate, it OVERWRITES a real player's club and logs a
+    transfer that never happened. So each one is fenced by two rules —
+
+      1. never adopt a row that already carries a DIFFERENT pulse_id. The
+         official feed has already identified that row as somebody else.
+      2. loose name matching stays inside the club being synced.
+
+    Rule 2 is what was missing from the token-subset fallback, and it cost
+    Arsenal their centre-half: 'Joseph Gabriel' of Man United tokenises to
+    {joseph, gabriel}, which contains {gabriel}, so it matched Arsenal's
+    Gabriel Magalhães across clubs, moved him to Man United and recorded a
+    bogus transfer that then bounced back and forth on every sync.
+    """
     r = conn.execute("SELECT id FROM players WHERE pulse_id=?",
                      (pulse_id,)).fetchone()
     if r:
         return r["id"]
     n = norm(name)
-    rows = conn.execute("SELECT id, name, team_id FROM players").fetchall()
-    full = [x for x in rows if norm(x["name"]) == n]
+    rows = conn.execute(
+        "SELECT id, name, team_id, pulse_id FROM players").fetchall()
+    # a row already bound to another pulse id is a different, known person
+    free = [x for x in rows if x["pulse_id"] is None]
+
+    full = [x for x in free if norm(x["name"]) == n]
     if len(full) == 1:
         return full[0]["id"]
     if len(full) > 1:   # same name twice: prefer same club
@@ -105,15 +124,17 @@ def find_player(conn, pulse_id, name, team_id):
         return (same or full)[0]["id"]
     # last-name fallback, only within the same club's known players
     last = n.split()[-1]
-    cand = [x for x in rows if x["team_id"] == team_id
+    cand = [x for x in free if x["team_id"] == team_id
             and norm(x["name"]).split()[-1] == last]
     if len(cand) == 1:
         return cand[0]["id"]
     # token-subset fallback for understat mononyms: 'Gabriel' should match
-    # 'Gabriel Magalhães', 'Casemiro' should match 'Carlos Henrique Casemiro'
+    # 'Gabriel Magalhães', 'Casemiro' should match 'Carlos Henrique Casemiro'.
+    # Same club only — see the docstring for what happens without that.
     toks = set(n.split())
-    cand = [x for x in rows
-            if set(norm(x["name"]).split()) <= toks
+    cand = [x for x in free
+            if x["team_id"] == team_id
+            and set(norm(x["name"]).split()) <= toks
             and set(norm(x["name"]).split()) != toks]
     if len(cand) == 1:
         return cand[0]["id"]
