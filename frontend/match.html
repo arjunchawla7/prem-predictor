@@ -49,6 +49,11 @@
   .fbadge.alt { background:#1d2340; color:#9db2f5; }
   .blendrow { margin-top:12px; padding-top:12px; font-size:13px;
               border-top:1px solid var(--line); color:var(--ink2); }
+  .lede { margin:-4px 0 12px; font-size:12.5px; color:var(--ink3);
+          max-width:62ch; }
+  .subh { font-size:11.5px; font-weight:700; color:var(--ink3);
+          text-transform:uppercase; letter-spacing:.5px;
+          margin:16px 0 6px; }
 
   .hero { text-align:center; padding:22px 18px 18px; }
   .hero .when { font-size:12.5px; color:var(--ink3); font-weight:500; }
@@ -134,6 +139,139 @@
               text-transform:uppercase; letter-spacing:.4px; }
   .tr-list { font-size:13px; color:var(--ink2); }
   .tr-list div { padding:2px 0; }
+  /* base button styling — the builder moved here from the gameweek page and
+     brought its own .seg/.cancel rules but relied on these */
+  button { background:var(--card); color:var(--ink2); border:1px solid var(--line);
+           border-radius:8px; padding:5px 11px; font:inherit; font-size:12.5px;
+           font-weight:600; cursor:pointer; }
+  button:hover { border-color:var(--line2); color:var(--ink); }
+  button.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  button.cancel { color:#f0806a; border-color:#4a2a24; }
+  button.cancel:hover { color:#ff9a83; border-color:#6b3a30; }
+
+  /* --- read-only lineup pitches (the "Lineups" section) --- */
+  .mini-h { font-weight:700; font-size:13.5px; margin-bottom:8px;
+            display:flex; justify-content:space-between; align-items:baseline; }
+  .mini-h span { font-size:11.5px; color:var(--ink3); font-weight:600;
+                 letter-spacing:.4px; }
+  .mini-pitch { position:relative; aspect-ratio:0.74; border-radius:10px;
+                background:linear-gradient(#16351f,#102a19);
+                border:1px solid #1e4429; overflow:hidden; }
+  .mini-pitch .line { position:absolute; border:1.5px solid rgba(255,255,255,.45); }
+  .mini-pitch .box { left:22%; width:56%; height:13%; bottom:-2px;
+                     border-bottom:0; }
+  .mini-pitch .six { left:36%; width:28%; height:5.5%; bottom:-2px;
+                     border-bottom:0; }
+  .mini-pitch .circ { left:50%; top:0; width:26%; aspect-ratio:1;
+                      border-radius:50%; transform:translate(-50%,-50%); }
+  .mslot { position:absolute; transform:translate(-50%,-50%); width:58px;
+           text-align:center; }
+  .mdot { position:relative; width:34px; height:34px; margin:0 auto;
+          border-radius:50%; background:#0b0e14; border:2px solid #cfd6e6;
+          color:#fff; font-size:12px; font-weight:800; display:flex;
+          align-items:center; justify-content:center; overflow:hidden; }
+  .mdot img { position:absolute; inset:0; width:100%; height:100%;
+              object-fit:cover; object-position:top; }
+  .mslot.warn .mdot { border-color:var(--warn); }
+  .mnm { font-size:10px; font-weight:700; color:#fff; margin-top:2px;
+         text-shadow:0 1px 3px rgba(0,0,0,.9); white-space:nowrap;
+         overflow:hidden; text-overflow:ellipsis; }
+  .mrt { font-size:9.5px; color:#b9c4d8; text-shadow:0 1px 3px rgba(0,0,0,.9); }
+  .lineup-bar { display:flex; gap:12px; align-items:flex-end;
+                justify-content:space-between; margin-top:14px;
+                padding-top:12px; border-top:1px solid var(--line);
+                flex-wrap:wrap; }
+
+  /* --- pitch builder --- */
+  .ed-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+             margin-bottom:12px; }
+  .seg { display:flex; border:1px solid var(--line); border-radius:8px;
+         overflow:hidden; }
+  .seg button { border:0; border-radius:0; padding:6px 14px; }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .builder { display:grid; grid-template-columns:minmax(0,1fr) 300px;
+             gap:16px; }
+  @media (max-width:700px){ .builder { grid-template-columns:1fr; } }
+  .pitch { position:relative; aspect-ratio:0.72; border-radius:10px;
+           background-image:
+             repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 11.1%,
+               rgba(0,0,0,.04) 11.1% 22.2%),
+             linear-gradient(180deg,#3f9d58 0%,#358a4b 100%);
+           overflow:hidden; border:1px solid #2f7c43; }
+  .pitch .line { position:absolute; border:1.5px solid rgba(255,255,255,.55); }
+  .pitch .box { left:22%; width:56%; height:14%; top:auto; bottom:-2px;
+                border-bottom:0; }
+  .pitch .six { left:36%; width:28%; height:6%; bottom:-2px; border-bottom:0; }
+  .pitch .circ { left:50%; top:0; width:26%; aspect-ratio:1;
+                 transform:translate(-50%,-55%); border-radius:50%; }
+  .slot { position:absolute; transform:translate(-50%,-50%); width:64px;
+          text-align:center; cursor:pointer; user-select:none; }
+  /* the disc is white in both themes, so its text is pinned dark rather than
+     following --ink (which is near-white in dark mode and vanished here) */
+  .slot .dot { position:relative; width:40px; height:40px; margin:0 auto;
+               border-radius:50%; background:rgba(255,255,255,.92);
+               color:#111827; display:flex; align-items:center;
+               justify-content:center; font-weight:800; font-size:13px;
+               border:2.5px solid rgba(255,255,255,.9);
+               box-shadow:0 2px 6px rgba(0,0,0,.25); overflow:hidden; }
+  /* photo sits over the shirt number; if the CDN has no image for this
+     player it removes itself and the number/initials stay visible */
+  .slot .dot img { position:absolute; inset:0; width:100%; height:100%;
+                   object-fit:cover; object-position:top; }
+  .slot.warn .dot { border-color:var(--warn); }
+  .slot .bang { position:absolute; top:-4px; left:2px; width:16px; height:16px;
+                border-radius:50%; background:var(--warn); color:#231c07;
+                font-size:11px; font-weight:800; line-height:16px; }
+  .mismatch { margin-top:8px; background:var(--warn-t); color:var(--warn);
+              border-radius:8px; padding:6px 10px; font-size:12px; }
+  .slot.empty .dot { background:rgba(255,255,255,.22); color:#fff;
+                     border-style:dashed; font-size:19px; font-weight:600; }
+  .slot.active .dot { border-color:#ffd84d;
+                      box-shadow:0 0 0 3px rgba(255,216,77,.55); }
+  .slot .nm { margin-top:3px; font-size:10.5px; font-weight:700; color:#fff;
+              text-shadow:0 1px 2px rgba(0,0,0,.5); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+  .slot .rm { position:absolute; top:-4px; right:2px; width:16px; height:16px;
+              border-radius:50%; background:#dc2626; color:#fff; font-size:10px;
+              line-height:16px; display:none; }
+  .slot:not(.empty):hover .rm { display:block; }
+
+  /* --- drag to reposition (pointer events, so one path covers touch+mouse) --- */
+  /* touch-action:none stops iOS scrolling the page instead of dragging; without
+     it a vertical drag on the pitch just scrolls and the slot never moves.
+     user-select:none stops the long-press text-selection callout on Safari. */
+  .slot:not(.empty) .dot { touch-action:none; cursor:grab; }
+  .slot .dot, .slot .nm { user-select:none; -webkit-user-select:none;
+                          -webkit-touch-callout:none; }
+  .slot.dragging { opacity:.35; }
+  .slot.dropzone .dot { border-color:#ffd84d;
+                        box-shadow:0 0 0 4px rgba(255,216,77,.28); }
+  /* the piece that follows the finger; outside .pitch so it is never clipped */
+  .drag-ghost { position:fixed; z-index:60; width:40px; height:40px;
+                border-radius:50%; pointer-events:none; transform:translate(-50%,-50%);
+                display:flex; align-items:center; justify-content:center;
+                font-weight:800; font-size:13px; color:#0b0e14;
+                background:#fff; border:2px solid #ffd84d;
+                box-shadow:0 6px 20px rgba(0,0,0,.45); overflow:hidden; }
+  .drag-ghost img { position:absolute; inset:0; width:100%; height:100%;
+                    object-fit:cover; object-position:top; }
+  .ed-side h4 { margin:0 0 6px; font-size:13px; }
+  .ed-side input { width:100%; margin-bottom:6px; background:var(--bg);
+                   color:var(--ink); border:1px solid var(--line);
+                   border-radius:8px; padding:6px 10px; font:inherit; }
+  .pool { height:380px; overflow-y:auto; border:1px solid var(--line);
+          border-radius:8px; padding:4px; }
+  .pool .pgrp { font-size:10.5px; font-weight:700; color:var(--ink3);
+                letter-spacing:.5px; padding:6px 6px 2px; }
+  .prow { display:flex; justify-content:space-between; gap:6px; padding:4px 6px;
+          font-size:13px; cursor:pointer; border-radius:6px; }
+  .prow:hover { background:var(--bg); }
+  .prow.used { opacity:.35; pointer-events:none; }
+  .prow .meta2 { color:var(--ink3); font-size:11.5px; white-space:nowrap; }
+  .newtag { color:#5ad19a; font-weight:700; font-size:10.5px; }
+  .pface { width:26px; height:26px; border-radius:50%; object-fit:cover;
+           object-position:top; background:var(--line); flex:0 0 auto; }
+  .pface.ini { font-size:10px; }
 </style>
 </head>
 <body>
@@ -204,9 +342,21 @@ function xiSide(name, lineup) {
   return h + '</div>';
 }
 
+// The lineup builder was moved here from the gameweek page, where it expected
+// a fixture in /api/gameweek's shape. FX adapts /api/fixture to that shape —
+// the derived formation lives under profiles.<side>.formation here — so the
+// builder needs no per-page branching.
+let FX = null;
+
 fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
   if (d.error) { document.getElementById('main').textContent = d.error; return; }
   const p = d.prediction;
+  const prof = d.profiles || {};
+  FX = {
+    id: d.id, prediction: p,
+    home: { ...d.home, formation: (prof.home || {}).formation },
+    away: { ...d.away, formation: (prof.away || {}).formation },
+  };
   const mode = d.lineup_mode === 'manual' ? 'manual' : (p ? p.tag : 'none');
   const mkt = d.odds ? d.odds.implied : null;
   document.title = `${d.home.name} vs ${d.away.name} — Prem Predictor`;
@@ -241,35 +391,102 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
   }
   html += `</div>`;
 
+  // --- lineups, on a pitch ---------------------------------------------
+  // Moved here from the gameweek page, where eleven names in a list told you
+  // nothing about shape. Same derived formation and the same fit-based
+  // placement the builder uses, so the pitch here and the pitch you edit
+  // agree.
+  if (p) {
+    const board = (side, team, lineup) => {
+      const shape = defaultFormation(((d.profiles || {})[side] || {}).formation);
+      if (!lineup || !lineup.length)
+        return `<div><div class="mini-h">${team.name}</div>
+          <div class="provtag" style="padding:20px 0">no lineup — the
+          season-average rating is used for this side</div></div>`;
+      const F = formationFor(shape), spec = specificRoles(shape) || F.roles;
+      const ids = placeByFit(lineup, shape);
+      const byId = Object.fromEntries(lineup.map(x => [x.id, x]));
+      const dots = ids.map((id, i) => {
+        const pl = byId[id];
+        const [x, y] = F.xy[i];
+        if (!pl) return '';
+        const off = pl.position && pl.position !== F.roles[i];
+        return `<div class="mslot${off ? ' warn' : ''}"
+            style="left:${x}%; top:${y}%"
+            title="${pl.name} — ${pl.detail_pos || pl.position} in a ${spec[i]} slot">
+            <div class="mdot">${pl.shirt || initials(pl.name)}
+              ${pl.photo ? `<img src="${pl.photo}" alt="" loading="lazy"
+                 onerror="this.remove()">` : ''}</div>
+            <div class="mnm">${shortName(pl.name)}</div>
+            <div class="mrt">T${pl.tier}${pl.provisional ? '*' : ''}</div>
+          </div>`;
+      }).join('');
+      return `<div>
+        <div class="mini-h">${team.name} <span>${shape}</span></div>
+        <div class="mini-pitch">
+          <div class="line box"></div><div class="line six"></div>
+          <div class="line circ"></div>${dots}</div></div>`;
+    };
+    html += `<div class="card"><h2>Lineups</h2>
+      <div class="xi2">${board('home', d.home, p.home_lineup)}
+                       ${board('away', d.away, p.away_lineup)}</div>
+      <div class="lineup-bar">
+        <span class="footnote" style="margin:0">T = rating tier (5 best, from
+        last season) · * = provisional league-average rating · amber = out of
+        position. ${mode === 'manual'
+          ? 'This XI was set by hand.'
+          : 'Predicted from each side&rsquo;s most-used recent lineup.'}</span>
+        <span style="display:flex; gap:8px">
+          ${d.lineup_mode === 'manual'
+            ? `<button onclick="resetFx(${d.id})">reset to auto</button>` : ''}
+          <button class="primary" onclick="openEditor(${d.id}, ${d.home.id},
+            '${d.home.name.replace(/'/g, "\\'")}', ${d.away.id},
+            '${d.away.name.replace(/'/g, "\\'")}')">Edit XI</button>
+        </span>
+      </div></div>`;
+  }
+
   // What actually fed THIS prediction. Same "known limitations, deliberately
   // not hidden" rule as the performance page, applied per fixture: factors
   // that are switched off or unproven say so in the row rather than being
   // quietly omitted.
   if (p && p.factors && p.factors.length) {
+    // Each badge says plainly what that factor is worth, rather than leaving
+    // the reader to decode a status word.
     const BADGE = {
-      validated:         ['ok',   'improves calibration'],
-      reference:         ['warn', 'shown for reference, not proven to improve accuracy'],
-      fallback:          ['warn', 'fallback — incomplete data'],
-      disabled:          ['off',  'switched off — did not improve calibration'],
-      unavailable:       ['off',  'unavailable for this fixture'],
-      'separate-output': ['alt',  'separate output — not the model\'s own number'],
+      validated:         ['ok',   'Proven',    'Measured to improve the model in backtesting'],
+      reference:         ['warn', 'Unproven',  'Shown for interest. It did not improve accuracy in backtesting'],
+      fallback:          ['warn', 'Estimated', 'Incomplete data, so a stand-in value is used'],
+      'cross-league':    ['warn', 'Estimated', 'Projected from another division — rougher than a top-flight rating'],
+      disabled:          ['off',  'Not used',  'Switched off because it made predictions worse'],
+      unavailable:       ['off',  'Missing',   'No data for this fixture, so it was skipped'],
+      'separate-output': ['alt',  'Side note', 'Reported separately and never mixed into the prediction'],
     };
-    html += `<div class="card"><h2>What fed this prediction</h2>
-      <table class="factors">` +
-      p.factors.map(f => {
-        const [cls, tip] = BADGE[f.status] || ['warn', f.status];
-        return `<tr class="${f.active ? '' : 'inactive'}">
-          <td class="fname">${f.name}</td>
-          <td class="feff">${f.effect}${f.detail
-            ? `<span class="fdet">${f.detail}</span>` : ''}</td>
-          <td><span class="fbadge ${cls}" title="${tip}">${f.status}</span></td>
-        </tr>`;
-      }).join('') + `</table>`;
+    const on = p.factors.filter(f => f.active), off = p.factors.filter(f => !f.active);
+    const rows = list => list.map(f => {
+      const [cls, label, tip] = BADGE[f.status] || ['warn', f.status, f.status];
+      return `<tr class="${f.active ? '' : 'inactive'}">
+        <td class="fname">${f.name}</td>
+        <td class="feff">${f.effect}${f.detail
+          ? `<span class="fdet">${f.detail}</span>` : ''}</td>
+        <td><span class="fbadge ${cls}" title="${tip}">${label}</span></td>
+      </tr>`;
+    }).join('');
+    html += `<div class="card"><h2>How this prediction was built</h2>
+      <p class="lede">Every number above comes from the pieces below. Anything
+      that has not been shown to make predictions better is labelled as such
+      rather than quietly folded in.</p>
+      <table class="factors">${rows(on)}</table>`;
+    if (off.length)
+      html += `<h3 class="subh">Considered but not applied</h3>
+        <table class="factors">${rows(off)}</table>`;
     if (p.blend)
-      html += `<div class="blendrow"><b>Model + market blend:</b>
-        ${pct(p.blend.p_home)} / ${pct(p.blend.p_draw)} / ${pct(p.blend.p_away)}
-        <span class="fdet">Separate output. The headline figures above are the
-        model unassisted — the blend is never folded into them.</span></div>`;
+      html += `<div class="blendrow"><b>Model + market blend —
+        ${pct(p.blend.p_home)} / ${pct(p.blend.p_draw)} / ${pct(p.blend.p_away)}</b>
+        <span class="fdet">An average of this model and the bookmakers' odds.
+        It scores better than the model alone, which is exactly why it is kept
+        apart: the figures at the top of this page are the model unaided, and
+        mixing the two would hide how good the model actually is.</span></div>`;
     html += `</div>`;
   }
 
@@ -294,12 +511,6 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     <div class="axis">rows = ${d.home.name} goals · columns = ${d.away.name}
     goals · cell = % chance (0-5 shown)</div></div></div>`;
 
-    html += `<div class="card"><h2>Predicted lineups</h2><div class="xi2">
-      ${xiSide(d.home.name, p.home_lineup)}
-      ${xiSide(d.away.name, p.away_lineup)}</div>
-      <div class="footnote">T = rating tier (5 best, last-season data) ·
-      F = fatigue 0-100 (league minutes only) · prov = provisional
-      league-average rating</div></div>`;
   }
 
   const sheet = side => {
@@ -365,6 +576,611 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
   }
   document.getElementById('main').innerHTML = html;
 });
+
+// ---- FotMob-style pitch lineup builder ----
+// slot coords: [x%, y%] on a vertical pitch, GK at the bottom
+const FORMATIONS = {
+  '4-3-3':   { roles: ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'],
+    xy: [[50,90],[14,72],[38,75],[62,75],[86,72],[27,52],[50,57],[73,52],[16,28],[50,22],[84,28]] },
+  '4-4-2':   { roles: ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','MID','FWD','FWD'],
+    xy: [[50,90],[14,72],[38,75],[62,75],[86,72],[12,50],[38,54],[62,54],[88,50],[38,25],[62,25]] },
+  '4-2-3-1': { roles: ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','MID','MID','FWD'],
+    xy: [[50,90],[14,72],[38,75],[62,75],[86,72],[38,60],[62,60],[18,40],[50,37],[82,40],[50,20]] },
+  '3-5-2':   { roles: ['GK','DEF','DEF','DEF','MID','MID','MID','MID','MID','FWD','FWD'],
+    xy: [[50,90],[25,74],[50,77],[75,74],[10,50],[31,56],[50,60],[69,56],[90,50],[38,25],[62,25]] },
+  '3-4-3':   { roles: ['GK','DEF','DEF','DEF','MID','MID','MID','MID','FWD','FWD','FWD'],
+    xy: [[50,90],[25,74],[50,77],[75,74],[14,52],[39,57],[61,57],[86,52],[18,27],[50,22],[82,27]] },
+  '5-3-2':   { roles: ['GK','DEF','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD'],
+    xy: [[50,90],[8,66],[29,74],[50,77],[71,74],[92,66],[27,50],[50,55],[73,50],[38,25],[62,25]] },
+  // wing-backs pushed high and wide, three centre-backs tucked behind them,
+  // a flat pivot, then two off a lone striker
+  '5-2-2-1': { roles: ['GK','DEF','DEF','DEF','DEF','DEF','MID','MID','MID','MID','FWD'],
+    xy: [[50,90],[8,64],[29,74],[50,77],[71,74],[92,64],[36,55],[64,55],[30,34],[70,34],[50,19]] },
+  // the Christmas tree: each band narrower than the one beneath it
+  '4-3-2-1': { roles: ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','MID','MID','FWD'],
+    xy: [[50,90],[14,72],[38,75],[62,75],[86,72],[26,54],[50,59],[74,54],[35,34],[65,34],[50,19]] },
+};
+
+// The six above are hand-placed. The shape deriver (models/formation.py) emits
+// whatever the real starting XIs produce, which is a much longer list —
+// 5-2-2-1, 4-5-1, 4-3-2-1, 4-4-1-1, 3-4-1-2 and more all occur. Hand-writing
+// coordinates for each would leave the builder permanently trailing the data,
+// which is exactly how it ended up defaulting everything to 4-3-3. So anything
+// without a hand-placed entry gets its pitch positions generated from the
+// formation string itself: "4-2-3-1" is simply four lines of 4/2/3/1 in front
+// of a keeper.
+const DEFAULT_FORMATION = '4-3-3';   // used only when a team has no derived
+                                     // shape at all (e.g. a promoted side with
+                                     // no top-flight history)
+
+function buildFormation(name) {
+  const lines = name.split('-').map(Number);
+  if (!lines.length || lines.some(n => !Number.isInteger(n) || n < 1)) return null;
+  if (lines.reduce((a, b) => a + b, 0) !== 10) return null;   // outfield only
+
+  const roles = ['GK'];
+  const xy = [[50, 90]];
+  lines.forEach((count, li) => {
+    // first line is the back line, last is the attack, everything between is
+    // midfield — matching how the deriver buckets slot codes into lines
+    const role = li === 0 ? 'DEF' : (li === lines.length - 1 ? 'FWD' : 'MID');
+    const y = lines.length === 1 ? 45
+      : Math.round(74 - li * (74 - 20) / (lines.length - 1));
+    const gap = Math.min(30, 84 / count);
+    for (let i = 0; i < count; i++) {
+      roles.push(role);
+      xy.push([Math.round(50 + (i - (count - 1) / 2) * gap), y]);
+    }
+  });
+  return { roles, xy };
+}
+
+function formationFor(name) {
+  return FORMATIONS[name] || buildFormation(name);
+}
+
+// --- specific slot roles ----------------------------------------------------
+// Slot roles are only GK/DEF/MID/FWD, but every player carries a precise
+// detail_pos (CB, LB, RB, CDM, CAM, LW, RW, ST...). Filling a back four by
+// coarse group alone put centre-backs at left-back and, in a 4-2-3-1, dropped
+// a centre-back into the attacking-midfield band. So each slot also gets a
+// SPECIFIC role, derived from where it sits: which line it is in, and its
+// left-to-right order within that line (every layout lists a line in
+// ascending x, hand-placed and generated alike).
+//
+// These drive initial placement only. The out-of-position warning stays on the
+// coarse comparison — flagging a centre-back at left-back would light up
+// almost every real lineup and make the warning worthless.
+const LINE_ROLES = {
+  // defenders, by how many are in the line
+  def: { 3: ['CB','CB','CB'], 4: ['LB','CB','CB','RB'],
+         5: ['LB','CB','CB','CB','RB'] },
+  // the attacking line
+  fwd: { 1: ['ST'], 2: ['ST','ST'], 3: ['LW','ST','RW'] },
+};
+
+/** What each slot really is, e.g. 4-2-3-1 ->
+ *  GK LB CB CB RB CDM CDM LW CAM RW ST */
+function specificRoles(name) {
+  const F = formationFor(name);
+  if (!F) return null;
+  const lines = name.split('-').map(Number);
+  const out = ['GK'];
+  let midDepth = 0;
+  const midCount = lines.length - 2;      // lines that are neither back nor attack
+  lines.forEach((count, li) => {
+    if (li === 0) {
+      out.push(...(LINE_ROLES.def[count] || Array(count).fill('CB')));
+    } else if (li === lines.length - 1) {
+      out.push(...(LINE_ROLES.fwd[count] || Array(count).fill('ST')));
+    } else {
+      // With one midfield line it IS the central midfield — a 4-3-3's three
+      // are central, the wingers live in the forward line. Only when a shape
+      // stacks several midfield bands (4-2-3-1) is the top one the attacking
+      // band, and only then does widening it to wingers make sense.
+      const deepest = midDepth === 0;
+      const highest = midDepth === midCount - 1;
+      let base, widen;
+      if (midCount === 1) {
+        base = 'CM';
+        widen = count >= 4;          // a midfield four is wide-left/wide-right
+      } else if (deepest) {
+        // a double pivot is genuinely holding; a line of three or more that
+        // deep is just central midfield, and a four has wide players in it
+        base = count <= 2 ? 'CDM' : 'CM';
+        widen = count >= 4;
+      } else {
+        base = highest ? 'CAM' : 'CM';
+        widen = highest && count >= 3;
+      }
+      const row = Array(count).fill(base);
+      if (widen) { row[0] = 'LW'; row[row.length - 1] = 'RW'; }
+      out.push(...row);
+      midDepth++;
+    }
+  });
+  return out;
+}
+
+// what a slot will accept, best first, before falling back to coarse group
+const FITS = {
+  GK: ['GK'],
+  LB: ['LB', 'FB', 'LWB'], RB: ['RB', 'FB', 'RWB'], CB: ['CB'],
+  CDM: ['CDM', 'CM'], CM: ['CM', 'CDM', 'CAM'],
+  CAM: ['CAM', 'SS', 'CM'],
+  LW: ['LW', 'W', 'LM'], RW: ['RW', 'W', 'RM'],
+  ST: ['ST', 'SS', 'CF'],
+};
+const COARSE = { GK: 'GK', LB: 'DEF', RB: 'DEF', CB: 'DEF', CDM: 'MID',
+                 CM: 'MID', CAM: 'MID', LW: 'FWD', RW: 'FWD', ST: 'FWD' };
+
+/** How far up the pitch a position sits: 0 keeper, 3 attack. Used to place
+ *  players who fit nowhere as near their natural line as possible. */
+function lineOf(pos) {
+  const p = (pos || '').toUpperCase();
+  if (p === 'GK') return 0;
+  if (['LB','CB','RB','FB','LWB','RWB','DEF'].includes(p)) return 1;
+  if (['CDM','CM','CAM','LM','RM','MID'].includes(p)) return 2;
+  return 3;
+}
+
+/** How well a player suits a specific slot role. Higher is better, 0 = no. */
+function fitScore(player, role) {
+  const dp = (player.detail_pos || '').toUpperCase();
+  const list = FITS[role] || [];
+  const i = list.indexOf(dp);
+  if (i === 0) return 100;          // exactly this position
+  if (i > 0) return 80 - i * 5;     // an accepted alternative
+  // no detail_pos, or an unrelated one: fall back to the coarse group, which
+  // is all the old placement ever used
+  if (player.position && player.position === COARSE[role]) return dp ? 30 : 40;
+  return 0;
+}
+
+/** Derived shape for one side, falling back safely. `f` is the API's
+ *  formation object ({formation, share, sample, ...}) or null. */
+function defaultFormation(f) {
+  const name = f && f.formation;
+  return (name && formationFor(name)) ? name : DEFAULT_FORMATION;
+}
+
+let ED = null;
+
+async function openEditor(fid, hid, hname, aid, aname) {
+  ED = { fid, side: 'h', active: 0,
+         names: { h: hname, a: aname },
+         formation: { h: DEFAULT_FORMATION, a: DEFAULT_FORMATION },
+         derived: { h: null, a: null },
+         slots: { h: Array(11).fill(null), a: Array(11).fill(null) },
+         pools: {} };
+  for (const [side, tid] of [['h', hid], ['a', aid]]) {
+    const r = await fetch(`/api/squad/${tid}`);
+    ED.pools[side] = await r.json();
+  }
+  // The match page already holds this fixture, so the builder reads it
+  // straight from FX instead of round-tripping the gameweek feed. Shapes come
+  // from /api/fixture's `profiles`, which is the same derived source the
+  // gameweek feed exposes as `formation`.
+  const fx = FX;
+
+  // Default each side to ITS OWN derived shape — the same
+  // models/formation.py output the teamsheet panel shows. This used to be a
+  // hardcoded '4-3-3' for both teams, which is why every side opened in the
+  // same shape regardless of how it actually lines up.
+  if (fx) {
+    ED.derived = { h: fx.home.formation || null, a: fx.away.formation || null };
+    ED.formation = { h: defaultFormation(ED.derived.h),
+                     a: defaultFormation(ED.derived.a) };
+  }
+
+  // prefill from the fixture's current predicted lineups — must come AFTER
+  // the formation is set, since prefill() slots players by that shape's roles
+  if (fx && fx.prediction) {
+    prefill('h', fx.prediction.home_lineup);
+    prefill('a', fx.prediction.away_lineup);
+  }
+  const fsel = document.getElementById('formation');
+  // Offer the hand-placed shapes plus whatever either side actually plays,
+  // so a derived shape is never missing from its own dropdown.
+  const opts = [...new Set([...Object.keys(FORMATIONS),
+                            ED.formation.h, ED.formation.a])].sort();
+  fsel.innerHTML = opts.map(f => `<option>${f}</option>`).join('');
+  document.getElementById('seg-h').textContent = hname;
+  document.getElementById('seg-a').textContent = aname;
+  document.getElementById('ed-save').onclick = saveManual;
+  switchSide('h');
+  // baseline for the unsaved-changes guard, taken after prefill so the
+  // prefilled XI counts as "unchanged" rather than as edits
+  ED.opened = JSON.stringify(ED.slots);
+  const dlg = document.getElementById('editor');
+  // Esc closes a <dialog> by firing 'cancel'; route it through the same guard
+  // so the keyboard cannot bypass the confirmation the button enforces.
+  dlg.oncancel = ev => { ev.preventDefault(); closeEditor(false); };
+  dlg.showModal();
+}
+
+/** Fill a shape's slots from a set of players, best fit first.
+ *
+ *  Greedy over the whole score matrix rather than slot-by-slot: it repeatedly
+ *  takes the strongest remaining (slot, player) pair, so one unusual player
+ *  cannot cascade everyone else out of position. Taking slots in order is what
+ *  used to strand a centre-back in the attacking-midfield band — the band was
+ *  simply next in line when the defenders ran out.
+ *
+ *  Ties break toward minutes played, so the regular starter takes the slot.
+ *  Anyone left over fills whatever holes remain, exactly as before.
+ */
+function placeByFit(players, formationName) {
+  const roles = specificRoles(formationName)
+             || formationFor(formationName).roles;
+  const slots = Array(roles.length).fill(null);
+  const left = players.filter(Boolean);
+
+  const pairs = [];
+  roles.forEach((role, si) => left.forEach(p => {
+    const s = fitScore(p, role);
+    if (s > 0) pairs.push({ si, p, s });
+  }));
+  pairs.sort((a, b) => b.s - a.s || (b.p.minutes || 0) - (a.p.minutes || 0));
+
+  const usedSlot = new Set(), usedPlayer = new Set();
+  for (const { si, p, s } of pairs) {
+    if (usedSlot.has(si) || usedPlayer.has(p.id)) continue;
+    slots[si] = p.id;
+    usedSlot.add(si); usedPlayer.add(p.id);
+  }
+  // Whoever is still unplaced has no real fit anywhere left — an XI without a
+  // natural right-back still has to put someone there. Assign these by how far
+  // they are from the slot's line rather than in list order, so a spare
+  // striker takes the most advanced hole going instead of landing at
+  // left-back purely because that slot came first.
+  const spare = left.filter(p => !usedPlayer.has(p.id));
+  const holes = slots.map((s, i) => s === null ? i : -1).filter(i => i >= 0);
+  const pairs2 = [];
+  holes.forEach(si => spare.forEach(p => pairs2.push(
+    { si, p, d: Math.abs(lineOf(p.detail_pos || p.position) - lineOf(roles[si])) })));
+  pairs2.sort((a, b) => a.d - b.d || (b.p.minutes || 0) - (a.p.minutes || 0));
+  const takenSlot = new Set(), takenP = new Set();
+  for (const { si, p } of pairs2) {
+    if (takenSlot.has(si) || takenP.has(p.id)) continue;
+    slots[si] = p.id;
+    takenSlot.add(si); takenP.add(p.id);
+  }
+  return slots;
+}
+
+function prefill(side, lineup) {
+  if (!lineup) return;
+  ED.slots[side] = placeByFit(lineup, ED.formation[side]);
+}
+
+function playerById(side, id) {
+  return ED.pools[side].find(p => p.id === id);
+}
+function shortName(n) {
+  const parts = n.split(' ');
+  return parts.length > 1 ? parts[parts.length - 1] : n;
+}
+
+function switchSide(side) {
+  ED.side = side;
+  ED.active = ED.slots[side].findIndex(s => s === null);
+  document.getElementById('seg-h').classList.toggle('on', side === 'h');
+  document.getElementById('seg-a').classList.toggle('on', side === 'a');
+  document.getElementById('formation').value = ED.formation[side];
+  document.getElementById('pool-title').textContent =
+    ED.names[side] + ' squad';
+  document.getElementById('pool-filter').value = '';
+  drawPitch(); drawPool('');
+}
+
+function changeFormation(f) {
+  const side = ED.side;
+  const filled = ED.slots[side].filter(s => s !== null)
+    .map(id => playerById(side, id));
+  ED.formation[side] = f;
+  // same fit-based placement as the initial fill, so switching shape
+  // rearranges sensibly instead of reshuffling by coarse group
+  ED.slots[side] = placeByFit(filled, f);
+  ED.active = ED.slots[side].findIndex(s => s === null);
+  drawPitch(); drawPool(document.getElementById('pool-filter').value);
+}
+
+function drawPitch() {
+  const side = ED.side;
+  const F = formationFor(ED.formation[side]);
+  const spec = specificRoles(ED.formation[side]) || F.roles;
+  const pitch = document.getElementById('pitch');
+  pitch.querySelectorAll('.slot').forEach(e => e.remove());
+  const mismatches = [];
+  F.xy.forEach(([x, y], i) => {
+    const pid = ED.slots[side][i];
+    const p = pid ? playerById(side, pid) : null;
+    const role = F.roles[i];
+    // Out-of-position picks are allowed on purpose (testing "what if City
+    // play a midfielder at the back" is the point of manual mode) — they are
+    // flagged, never blocked.
+    const off = p && p.position && p.position !== role;
+    if (off) mismatches.push(`${shortName(p.name)} (${p.detail_pos || p.position})
+      in a ${role} slot`);
+    const div = document.createElement('div');
+    div.className = 'slot' + (p ? '' : ' empty')
+      + (i === ED.active ? ' active' : '') + (off ? ' warn' : '');
+    div.style.left = x + '%';
+    div.style.top = y + '%';
+    div.innerHTML = p
+      ? `<div class="dot" title="${p.name} — ${p.detail_pos || p.position}">
+           ${p.shirt || initials(p.name)}
+           ${p.photo ? `<img src="${p.photo}" alt="" loading="lazy"
+              onerror="this.remove()">` : ''}</div>
+         ${off ? '<div class="bang" title="out of position">!</div>' : ''}
+         <div class="nm">${shortName(p.name)}</div><div class="rm">✕</div>`
+      // an empty slot names the SPECIFIC role (LB, CDM, RW) rather than the
+      // coarse group, so it is obvious what belongs there
+      : `<div class="dot">+</div><div class="nm">${spec[i] || role}</div>`;
+    div.onclick = ev => {
+      // A drag ends with pointerup, not click — but browsers still fire a
+      // click afterwards. dragJustEnded swallows exactly that one, so a drag
+      // never doubles as a slot selection.
+      if (DRAG.justEnded) return;
+      if (ev.target.classList.contains('rm')) {
+        ED.slots[side][i] = null;
+        ED.active = i;
+      } else {
+        ED.active = i;
+      }
+      drawPitch(); drawPool(document.getElementById('pool-filter').value);
+    };
+    if (p) attachDrag(div, i);
+    pitch.appendChild(div);
+  });
+  const n = ED.slots[side].filter(s => s !== null).length;
+  document.getElementById('ed-count').textContent = `${n}/11`;
+  const warn = document.getElementById('ed-mismatch');
+  warn.style.display = mismatches.length ? 'block' : 'none';
+  warn.innerHTML = mismatches.length
+    ? `⚠ ${mismatches.length} out of position: ${mismatches.join('; ')}.
+       Allowed — the prediction uses each player's own rating either way.`
+    : '';
+}
+
+// --- drag a player between pitch slots -------------------------------------
+// Pointer Events rather than HTML5 drag-and-drop: dragstart/drop are never
+// fired by mobile Safari or Chrome Android, so a native-DnD build would work
+// on a desktop and do nothing at all on a phone, which is where this is used.
+// pointerdown/move/up covers mouse, touch and pen through one path.
+//
+// Tap-to-place still works and is untouched: nothing happens until the pointer
+// travels past THRESHOLD, so a tap never becomes a drag and the click handler
+// above keeps handling it.
+const DRAG = { i: -1, ghost: null, moved: false, justEnded: false };
+const THRESHOLD = 8;   // px of travel before a press counts as a drag
+
+function attachDrag(slotEl, index) {
+  slotEl.addEventListener('pointerdown', ev => {
+    // let the ✕ button do its own job
+    if (ev.target.classList.contains('rm')) return;
+    if (ev.button !== undefined && ev.button !== 0) return;
+
+    const startX = ev.clientX, startY = ev.clientY;
+    let armed = false;
+    slotEl.setPointerCapture(ev.pointerId);
+
+    const onMove = e => {
+      if (!armed) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) < THRESHOLD) return;
+        armed = true;
+        DRAG.i = index;
+        DRAG.moved = true;
+        slotEl.classList.add('dragging');
+        DRAG.ghost = makeGhost(ED.slots[ED.side][index]);
+        document.body.appendChild(DRAG.ghost);
+      }
+      e.preventDefault();
+      DRAG.ghost.style.left = e.clientX + 'px';
+      DRAG.ghost.style.top = e.clientY + 'px';
+      markDropzone(e.clientX, e.clientY);
+    };
+
+    const onUp = e => {
+      slotEl.removeEventListener('pointermove', onMove);
+      slotEl.removeEventListener('pointerup', onUp);
+      slotEl.removeEventListener('pointercancel', onUp);
+      if (!armed) return;                       // was a tap; click handles it
+      cleanupGhost();
+      const target = slotIndexAt(e.clientX, e.clientY);
+      if (target >= 0 && target !== index) swapSlots(index, target);
+      DRAG.justEnded = true;
+      setTimeout(() => { DRAG.justEnded = false; }, 0);
+      DRAG.i = -1;
+      drawPitch(); drawPool(document.getElementById('pool-filter').value);
+    };
+
+    slotEl.addEventListener('pointermove', onMove);
+    slotEl.addEventListener('pointerup', onUp);
+    slotEl.addEventListener('pointercancel', onUp);
+  });
+}
+
+function makeGhost(pid) {
+  const p = playerById(ED.side, pid);
+  const g = document.createElement('div');
+  g.className = 'drag-ghost';
+  g.textContent = p ? (p.shirt || initials(p.name)) : '';
+  if (p && p.photo) {
+    const img = document.createElement('img');
+    img.src = p.photo;
+    img.onerror = () => img.remove();
+    g.appendChild(img);
+  }
+  return g;
+}
+
+function cleanupGhost() {
+  if (DRAG.ghost) { DRAG.ghost.remove(); DRAG.ghost = null; }
+  document.querySelectorAll('.slot.dragging, .slot.dropzone')
+    .forEach(e => e.classList.remove('dragging', 'dropzone'));
+}
+
+/** Which slot is under the pointer. elementFromPoint is needed because the
+ *  ghost tracks the finger rather than the element itself moving. */
+function slotIndexAt(x, y) {
+  if (DRAG.ghost) DRAG.ghost.style.display = 'none';
+  const el = document.elementFromPoint(x, y);
+  if (DRAG.ghost) DRAG.ghost.style.display = '';
+  const slot = el && el.closest ? el.closest('.slot') : null;
+  if (!slot) return -1;
+  return [...document.querySelectorAll('#pitch .slot')].indexOf(slot);
+}
+
+function markDropzone(x, y) {
+  const idx = slotIndexAt(x, y);
+  document.querySelectorAll('#pitch .slot').forEach((s, i) =>
+    s.classList.toggle('dropzone', i === idx && i !== DRAG.i));
+}
+
+/** Move onto an empty slot, swap with an occupied one. Position validation is
+ *  deliberately NOT consulted here — it is recomputed by drawPitch() from slot
+ *  role vs player position, so a drag gets exactly the same advisory warning
+ *  as tap-to-place, through the same code, with no second path to keep in
+ *  sync. Out-of-position stays allowed, as it is for tapping. */
+function swapSlots(from, to) {
+  const s = ED.slots[ED.side];
+  [s[from], s[to]] = [s[to], s[from]];
+  ED.active = to;
+}
+
+function drawPool(filter = '') {
+  const side = ED.side;
+  const f = filter.toLowerCase();
+  const used = new Set(ED.slots[side].filter(s => s !== null));
+  const spec = specificRoles(ED.formation[side]);
+  // the specific role of the selected slot (LB, CDM, RW...), so the shortlist
+  // is "players who actually play there" and not "any defender"
+  const role = ED.active >= 0
+    ? (spec ? spec[ED.active] : formationFor(ED.formation[side]).roles[ED.active])
+    : null;
+  const order = { GK: 0, DEF: 1, MID: 2, FWD: 3, '?': 4 };
+  const fits = p => role ? fitScore(p, role) : 0;
+  const pool = [...ED.pools[side]]
+    .filter(p => p.name.toLowerCase().includes(f))
+    .sort((a, b) => {
+      const af = fits(a), bf = fits(b);
+      // strong fits first, then the usual position grouping
+      if ((af >= 60) !== (bf >= 60)) return bf - af;
+      if (af >= 60) return bf - af || b.minutes - a.minutes;
+      return (order[a.position] ?? 4) - (order[b.position] ?? 4)
+             || b.minutes - a.minutes;
+    });
+  let html = '', lastGrp = null;
+  for (const p of pool) {
+    const grp = fits(p) >= 60 ? `${role} — fits selected slot`
+                              : (p.position || '?');
+    if (grp !== lastGrp) { html += `<div class="pgrp">${grp}</div>`; lastGrp = grp; }
+    html += `<div class="prow ${used.has(p.id) ? 'used' : ''}"
+      onclick="assign(${p.id})">
+      <span style="display:flex;align-items:center;gap:7px">` +
+      avatar(p, 'pface') +
+      `${p.shirt ? '#' + p.shirt + ' ' : ''}${p.name}
+        ${p.new_signing ? '<span class="newtag">NEW</span>' : ''}</span>
+      <span class="meta2">${p.detail_pos || p.position} · T${p.tier}${p.new_signing
+        ? '' : ' · ' + p.minutes + "'"}</span></div>`;
+  }
+  document.getElementById('pool').innerHTML = html;
+}
+
+function assign(pid) {
+  const side = ED.side;
+  if (ED.active < 0) ED.active = ED.slots[side].findIndex(s => s === null);
+  if (ED.active < 0) return;
+  ED.slots[side][ED.active] = pid;
+  const next = ED.slots[side].findIndex(s => s === null);
+  ED.active = next;
+  drawPitch(); drawPool(document.getElementById('pool-filter').value);
+}
+
+function clearSide() {
+  const n = ED.slots[ED.side].filter(s => s !== null).length;
+  // only worth interrupting for if there is something to lose
+  if (n && !confirm(`Clear all ${n} players from ${ED.names[ED.side]}?`)) return;
+  ED.slots[ED.side] = Array(11).fill(null);
+  ED.active = 0;
+  drawPitch(); drawPool(document.getElementById('pool-filter').value);
+}
+
+/** Has anything changed since the builder opened? Compared against the
+ *  snapshot taken in openEditor, so closing without touching anything never
+ *  prompts — a guard that fires every time gets clicked through blindly. */
+function edDirty() {
+  return ED && JSON.stringify(ED.slots) !== ED.opened;
+}
+
+function closeEditor(force) {
+  if (!force && edDirty() &&
+      !confirm('Discard changes to this lineup?')) return false;
+  ED = null;
+  document.getElementById('editor').close();
+  return true;
+}
+
+async function saveManual() {
+  const h = ED.slots.h.filter(s => s !== null);
+  const a = ED.slots.a.filter(s => s !== null);
+  if ((h.length && h.length !== 11) || (a.length && a.length !== 11)) {
+    alert('each edited side needs exactly 11 players (or clear it fully)');
+    return;
+  }
+  if (!h.length && !a.length) { alert('pick at least one full XI'); return; }
+  const r = await fetch(`/api/fixture/${ED.fid}/manual`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ home: h.length ? h : null,
+                           away: a.length ? a : null }) });
+  const d = await r.json();
+  if (d.error) { alert(d.error); return; }
+  closeEditor(true);          // saved, so skip the unsaved-changes guard
+  location.reload();
+}
+
+async function resetFx(fid) {
+  await fetch(`/api/fixture/${fid}/reset`, { method: 'POST' });
+  location.reload();
+}
+
 </script>
+<dialog id="editor">
+  <h3 id="ed-title" style="margin:0 0 10px">Manual lineup</h3>
+  <div class="ed-head">
+    <div class="seg" id="side-seg">
+      <button id="seg-h" class="on" onclick="switchSide('h')"></button>
+      <button id="seg-a" onclick="switchSide('a')"></button>
+    </div>
+    <select id="formation" onchange="changeFormation(this.value)"></select>
+    <span class="cnt" id="ed-count"></span>
+  </div>
+  <div class="builder">
+    <div class="pitch" id="pitch">
+      <div class="line box"></div><div class="line six"></div>
+      <div class="line circ"></div>
+    </div>
+    <div class="ed-side">
+      <h4 id="pool-title"></h4>
+      <input id="pool-filter" placeholder="search players"
+             oninput="drawPool(this.value)">
+      <div class="pool" id="pool"></div>
+    </div>
+  </div>
+  <div class="mismatch" id="ed-mismatch" style="display:none"></div>
+  <p class="cnt"><b>Drag a player on the pitch</b> to move them, or onto another
+  player to swap. Or tap a slot then a player (or just tap players — slots fill
+  in order). Fill all 11, or clear a side entirely to keep its season-average
+  weighting.</p>
+  <div style="display:flex; gap:8px; justify-content:space-between; margin-top:8px">
+    <button onclick="clearSide()">Clear this side</button>
+    <span style="display:flex; gap:8px">
+      <button class="cancel" onclick="closeEditor(false)">Cancel</button>
+      <button class="primary" id="ed-save">Save &amp; predict</button>
+    </span>
+  </div>
+</dialog>
 </body>
 </html>
