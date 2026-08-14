@@ -150,6 +150,26 @@ class DixonColes:
             if exact:
                 ll = ll + np.log(np.clip(tau(hg, ag, lam, mu, rho), 1e-10, None))
             # soft identifiability: mean(log attack) = 0
+            #
+            # TODO (revisit once 2026-27 has ~150+ matches played, i.e. around
+            # December 2026): this constraint is why the model cannot track a
+            # league-wide change in scoring. Pinning average attack to a
+            # constant forces any shift in how many goals the division scores
+            # to be absorbed into RELATIVE team ratings instead of being
+            # modelled in its own right.
+            #
+            # It showed up on 2025-26: a 4+ goal side occurred in 7.6% of
+            # matches against a 13.9% four-season average, and the model went
+            # on predicting 14.8% — 56 expected, 29 seen, worst in mismatches
+            # (19.1% predicted vs 7.9% actual). Time decay does not rescue it;
+            # see scripts/tail_check.py --sweep for the measurement.
+            #
+            # Deliberately NOT fixed on one season of evidence. If 2026-27
+            # scoring stays low, the fix is a league-level scoring term — a
+            # per-season (or decayed rolling) level parameter multiplying both
+            # lam and mu, fitted alongside the ratings, so the division's
+            # overall goal rate is tracked separately from who is good. If
+            # 2025-26 turns out to have been a one-off, leave this alone.
             obj = -(w * ll).sum() + 1e3 * p[:n].mean() ** 2
             if self.prior_strength:
                 obj = obj + self.prior_strength * (p[:2 * n] ** 2).sum()

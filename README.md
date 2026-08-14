@@ -166,3 +166,34 @@ Known gaps this doesn't fix: no xG for Championship rows (understat doesn't cove
 ## About
 
 Personal project. No license/topics set.
+
+### Open question: league-level scoring (revisit ~December 2026)
+
+The model has no term for how many goals the division scores overall. The
+identifiability constraint pins mean(log attack) to a constant, so a
+league-wide shift gets absorbed into relative team ratings rather than tracked
+in its own right.
+
+2025-26 exposed this. A 4+ goal side occurred in **7.6%** of matches against a
+**13.9%** four-season average, and the model kept predicting **14.8%** — 56
+expected, 29 seen, a 4-sigma overshoot, worst in mismatches (19.1% predicted
+vs 7.9% actual). `python scripts/tail_check.py` reproduces it.
+
+What it is not:
+
+- **Not a thin tail.** The model already over-predicts 6, 7 and 8+ goal
+  matches, so a negative binomial would push it further the wrong way. That
+  idea was tested on the numbers and dropped.
+- **Not fixable by time decay.** `tail_check.py --sweep` shows forgetting old
+  matches eight times faster (half-life 693d to 87d) recovers only a third of
+  the gap, and within a season the estimate drifts slightly *up* as
+  low-scoring evidence accumulates, because rating spread widens faster than
+  the level falls.
+
+**Deliberately not fixed on one season.** Once 2026-27 has ~150 matches
+played, re-run `scripts/tail_check.py` with `TARGET` set to `2627`. If the low
+rate persists, the candidate fix is a per-season (or decayed rolling)
+league-level term multiplying both expected-goal figures, fitted alongside the
+ratings — backtested to the same Brier/log-loss standard as everything else.
+If 2025-26 was a one-off, leave it alone. The match page carries a caveat on
+the 4+ figure and /performance#tail explains it to readers meanwhile.

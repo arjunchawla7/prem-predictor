@@ -106,6 +106,37 @@ fetch('/api/performance').then(r => r.json()).then(d => {
   }
   html += '</div>';
 
+  html += `<div class="card" id="tail"><h2>Why big scorelines may read high</h2>
+  <p>The match pages give a chance that one side scores four or more. That
+  figure is currently <strong>too generous</strong>, and it is worth knowing
+  why before you lean on it.</p>
+  <table class="plain" style="margin:10px 0">
+   <tr><th>4+ goal side</th><th>rate</th></tr>
+   <tr><td>2022-23</td><td>15.5%</td></tr>
+   <tr><td>2023-24</td><td>18.2%</td></tr>
+   <tr><td>2024-25</td><td>14.2%</td></tr>
+   <tr><td><strong>2025-26</strong></td><td><strong>7.6%</strong></td></tr>
+   <tr><td>model, on the 2025-26 holdout</td><td>14.8%</td></tr>
+  </table>
+  <p>Against the four-season average of 13.9% the model is close to right. It
+  was 2025-26 that was the outlier, at roughly half the usual rate — and the
+  model, trained mostly on higher-scoring seasons, went on expecting the old
+  rate. It predicted 56 such matches; 29 happened. The overshoot is largest in
+  mismatches, where it expects 19.1% against an actual 7.9%.</p>
+  <p>Two things this is <em>not</em>. It is not a tail that needs fattening —
+  the model already over-predicts 6, 7 and 8+ goal matches, so a
+  heavier-tailed distribution would make it worse. And it is not something
+  time-decay fixes: forgetting old matches eight times faster recovers only a
+  third of the gap, and within a season the estimate drifts slightly up rather
+  than down as low-scoring evidence accumulates.</p>
+  <p><strong>Being monitored, not fixed.</strong> One unusual season is not
+  enough to justify a structural change. The candidate fix is a league-level
+  scoring term — the model currently pins average attack strength to a
+  constant, so a league-wide shift in goals gets absorbed into relative team
+  ratings instead of being tracked in its own right. That gets revisited once
+  2026-27 has enough matches to show whether the low-scoring pattern is real
+  or was a one-off.</p></div>`;
+
   html += `<div class="card"><h2>Known limitations (deliberately not hidden)</h2>
   <ul>
    <li>Lineup/fatigue/travel weighting did <strong>not</strong> improve

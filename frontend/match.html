@@ -406,9 +406,9 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     const bigger = p.home_xg >= p.away_xg ? d.home.name : d.away.name;
     html += `<div class="rout">
       <b>${pct(rout)}</b> chance a side scores 4 or more
-      <span class="fdet">Most likely if it happens: ${bigger}. Measured against
-      2022-26, real matches do this 13.9% of the time — 2025-26 was unusually
-      low at 7.6%.</span></div>`;
+      <span class="fdet">Most likely if it happens: ${bigger}. Real matches did
+      this 13.9% of the time over 2022-26. <b>This figure may currently run
+      high</b> — <a href="/performance#tail">see why</a>.</span></div>`;
     if (p.partial_data || p.notes)
       html += `<div class="warnrow">${p.partial_data ? '⚠ partial data. ' : ''}
         ${p.notes || ''}</div>`;
