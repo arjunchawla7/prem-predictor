@@ -277,9 +277,10 @@ function render(data) {
         <span class="sc">likely: ${p.top_scores.slice(0, 3).map(s =>
           `<b>${s.score}</b> ${pct(s.p)}`).join(' · ')}</span>
         ${!f.odds ? '<span>no market odds</span>' : ''}
-      </div>
-      ${p.partial_data || p.notes ? `<div class="warnrow">
-        ${p.partial_data ? '⚠ partial data. ' : ''}${p.notes || ''}</div>` : ''}`;
+      </div>`;
+      // Data-quality warnings are no longer shown on the card — they crowded
+      // the gameweek list. They still appear in full on the match page, which
+      // is where the detail belongs.
     }
 
     // The whole card is the link. Lineups, ratings and the XI editor moved to

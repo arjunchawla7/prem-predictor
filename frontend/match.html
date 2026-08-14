@@ -241,8 +241,16 @@
      it a vertical drag on the pitch just scrolls and the slot never moves.
      user-select:none stops the long-press text-selection callout on Safari. */
   .slot:not(.empty) .dot { touch-action:none; cursor:grab; }
+  .slot:not(.empty) .dot:active { cursor:grabbing; }
   .slot .dot, .slot .nm { user-select:none; -webkit-user-select:none;
                           -webkit-touch-callout:none; }
+  /* Desktop-only failure this fixes: a mouse press on the player photo starts
+     the browser's OWN image drag, which cancels the pointer stream and the
+     slot never moves. Touch devices have no native image drag, so it worked
+     on a phone and not on a PC. Blocking the native drag and taking the
+     photo out of hit-testing keeps every press on the dot itself. */
+  .slot .dot img, .drag-ghost img, .mslot img {
+    -webkit-user-drag:none; user-drag:none; pointer-events:none; }
   .slot.dragging { opacity:.35; }
   .slot.dropzone .dot { border-color:#ffd84d;
                         box-shadow:0 0 0 4px rgba(255,216,77,.28); }
@@ -415,10 +423,9 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
             style="left:${x}%; top:${y}%"
             title="${pl.name} — ${pl.detail_pos || pl.position} in a ${spec[i]} slot">
             <div class="mdot">${pl.shirt || initials(pl.name)}
-              ${pl.photo ? `<img src="${pl.photo}" alt="" loading="lazy"
+              ${pl.photo ? `<img src="${pl.photo}" alt="" loading="lazy" draggable="false"
                  onerror="this.remove()">` : ''}</div>
             <div class="mnm">${shortName(pl.name)}</div>
-            <div class="mrt">T${pl.tier}${pl.provisional ? '*' : ''}</div>
           </div>`;
       }).join('');
       return `<div>
@@ -431,9 +438,8 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       <div class="xi2">${board('home', d.home, p.home_lineup)}
                        ${board('away', d.away, p.away_lineup)}</div>
       <div class="lineup-bar">
-        <span class="footnote" style="margin:0">T = rating tier (5 best, from
-        last season) · * = provisional league-average rating · amber = out of
-        position. ${mode === 'manual'
+        <span class="footnote" style="margin:0">Amber ring = out of position.
+        ${mode === 'manual'
           ? 'This XI was set by hand.'
           : 'Predicted from each side&rsquo;s most-used recent lineup.'}</span>
         <span style="display:flex; gap:8px">
@@ -444,50 +450,6 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
             '${d.away.name.replace(/'/g, "\\'")}')">Edit XI</button>
         </span>
       </div></div>`;
-  }
-
-  // What actually fed THIS prediction. Same "known limitations, deliberately
-  // not hidden" rule as the performance page, applied per fixture: factors
-  // that are switched off or unproven say so in the row rather than being
-  // quietly omitted.
-  if (p && p.factors && p.factors.length) {
-    // Each badge says plainly what that factor is worth, rather than leaving
-    // the reader to decode a status word.
-    const BADGE = {
-      validated:         ['ok',   'Proven',    'Measured to improve the model in backtesting'],
-      reference:         ['warn', 'Unproven',  'Shown for interest. It did not improve accuracy in backtesting'],
-      fallback:          ['warn', 'Estimated', 'Incomplete data, so a stand-in value is used'],
-      'cross-league':    ['warn', 'Estimated', 'Projected from another division — rougher than a top-flight rating'],
-      disabled:          ['off',  'Not used',  'Switched off because it made predictions worse'],
-      unavailable:       ['off',  'Missing',   'No data for this fixture, so it was skipped'],
-      'separate-output': ['alt',  'Side note', 'Reported separately and never mixed into the prediction'],
-    };
-    const on = p.factors.filter(f => f.active), off = p.factors.filter(f => !f.active);
-    const rows = list => list.map(f => {
-      const [cls, label, tip] = BADGE[f.status] || ['warn', f.status, f.status];
-      return `<tr class="${f.active ? '' : 'inactive'}">
-        <td class="fname">${f.name}</td>
-        <td class="feff">${f.effect}${f.detail
-          ? `<span class="fdet">${f.detail}</span>` : ''}</td>
-        <td><span class="fbadge ${cls}" title="${tip}">${label}</span></td>
-      </tr>`;
-    }).join('');
-    html += `<div class="card"><h2>How this prediction was built</h2>
-      <p class="lede">Every number above comes from the pieces below. Anything
-      that has not been shown to make predictions better is labelled as such
-      rather than quietly folded in.</p>
-      <table class="factors">${rows(on)}</table>`;
-    if (off.length)
-      html += `<h3 class="subh">Considered but not applied</h3>
-        <table class="factors">${rows(off)}</table>`;
-    if (p.blend)
-      html += `<div class="blendrow"><b>Model + market blend —
-        ${pct(p.blend.p_home)} / ${pct(p.blend.p_draw)} / ${pct(p.blend.p_away)}</b>
-        <span class="fdet">An average of this model and the bookmakers' odds.
-        It scores better than the model alone, which is exactly why it is kept
-        apart: the figures at the top of this page are the model unaided, and
-        mixing the two would hide how good the model actually is.</span></div>`;
-    html += `</div>`;
   }
 
   if (p) {
@@ -911,7 +873,7 @@ function drawPitch() {
     div.innerHTML = p
       ? `<div class="dot" title="${p.name} — ${p.detail_pos || p.position}">
            ${p.shirt || initials(p.name)}
-           ${p.photo ? `<img src="${p.photo}" alt="" loading="lazy"
+           ${p.photo ? `<img src="${p.photo}" alt="" loading="lazy" draggable="false"
               onerror="this.remove()">` : ''}</div>
          ${off ? '<div class="bang" title="out of position">!</div>' : ''}
          <div class="nm">${shortName(p.name)}</div><div class="rm">✕</div>`
@@ -961,6 +923,9 @@ function attachDrag(slotEl, index) {
     // let the ✕ button do its own job
     if (ev.target.classList.contains('rm')) return;
     if (ev.button !== undefined && ev.button !== 0) return;
+    // belt and braces alongside the CSS above: stops a mouse press from
+    // kicking off a native image/text drag before we ever see a pointermove
+    ev.preventDefault();
 
     const startX = ev.clientX, startY = ev.clientY;
     let armed = false;
@@ -1010,6 +975,7 @@ function makeGhost(pid) {
   if (p && p.photo) {
     const img = document.createElement('img');
     img.src = p.photo;
+    img.draggable = false;
     img.onerror = () => img.remove();
     g.appendChild(img);
   }
