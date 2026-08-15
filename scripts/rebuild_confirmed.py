@@ -98,6 +98,18 @@ def main():
     if not fixtures:
         print(f"no fixtures for gameweek {gw}")
         return
+    # Confirmed XIs are the biggest news the market gets all week, and this
+    # runs right after they land. Take a snapshot first so the 'final'
+    # prediction's blend is mixed against a line that has seen the same team
+    # news the model just did.
+    try:
+        from pull_odds import build_args, pull
+        pull(conn, build_args(["--window-hours", "6", "--min-interval", "30"]))
+    except SystemExit:
+        print("odds refresh failed — continuing with the last line held")
+    except Exception as e:
+        print(f"odds refresh skipped ({e}) — continuing")
+
     print(f"Mode 2 rebuild, gameweek {gw} ({len(fixtures)} fixtures)")
     predictor = None
 

@@ -102,7 +102,6 @@
   .price.d .val { color:#2eb8a5; }
   .price.a { background:var(--away-t); border-color:#57301a; }
   .price.a .val { color:#f97b3d; }
-  .price .mkt { font-size:10.5px; color:var(--ink3); margin-top:1px; }
 
   .bar { display:flex; height:8px; border-radius:4px; overflow:hidden;
          gap:2px; background:var(--card); margin-bottom:10px; }
@@ -136,6 +135,25 @@
               border:1px solid var(--line); border-radius:6px; padding:3px 8px;
               font-variant-numeric:tabular-nums; }
   .dist .d1 b { color:var(--ink); font-weight:700; }
+
+  /* Market: same three columns as .prices so home sits under home, but
+     outlined instead of filled — it is the comparison, not the prediction. */
+  .mkts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .mk { border:1px solid var(--line); border-radius:10px; background:var(--bg);
+        padding:7px 6px 6px; text-align:center; }
+  .mk .mlbl { font-size:10.5px; font-weight:600; color:var(--ink3);
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mk .mval { font-size:17px; font-weight:800; letter-spacing:-.4px;
+              font-variant-numeric:tabular-nums; }
+  .mk .mimp { font-size:11px; color:var(--ink3);
+              font-variant-numeric:tabular-nums; }
+  .mk.h { border-color:#243a63; } .mk.h .mval { color:var(--home); }
+  .mk.d { border-color:#164a42; } .mk.d .mval { color:#2eb8a5; }
+  .mk.a { border-color:#57301a; } .mk.a .mval { color:#f97b3d; }
+  .mk .up { color:#5ad19a; font-weight:700; }
+  .mk .dn { color:#f0806a; font-weight:700; }
+  .mfoot { font-size:11px; color:var(--ink3); margin-top:5px; }
+  .nomkt { font-size:12px; color:var(--ink3); font-style:italic; }
   .warnrow { margin-top:8px; background:var(--warn-t); color:var(--warn);
              border-radius:8px; padding:6px 10px; font-size:12px; }
   .fx-foot { display:flex; justify-content:space-between; align-items:center;
@@ -274,6 +292,44 @@ function avatar(p, cls) {
 }
 
 
+// The market gets the same three-box shape as the model's own numbers, so the
+// two rows read as a column each: home against home, draw against draw. It is
+// drawn outlined rather than filled because it is the comparison, not the
+// prediction — same reason it sits below the result and not beside it.
+function marketBoxes(f) {
+  const o = f.odds;
+  if (!o) return `<div class="sect"><div class="slab">Market</div>
+    <div class="nomkt">no market odds for this fixture</div></div>`;
+  const cls = ['h', 'd', 'a'];
+  const names = [f.home.name, 'Draw', f.away.name];
+  const drift = o.drift || [];
+  const anyMoved = drift.some(x => Math.abs(x) >= 0.005);
+  const boxes = cls.map((c, i) => {
+    const d = drift[i];
+    const moved = d != null && Math.abs(d) >= 0.005;
+    return `<div class="mk ${c}">
+      <div class="mlbl">${names[i]}</div>
+      <div class="mval">${o.decimal[i].toFixed(2)}</div>
+      <div class="mimp">${pct(o.implied[i])}${moved
+        ? ` <span class="${d > 0 ? 'up' : 'dn'}">${d > 0 ? '▲' : '▼'}${
+            Math.abs(100 * d).toFixed(1)}</span>`
+        : ''}</div>
+    </div>`;
+  }).join('');
+  return `<div class="sect"><div class="slab">Market</div>
+    <div class="mkts">${boxes}</div>
+    <div class="mfoot">${o.bookmaker || 'market'}${
+      o.age_hours == null ? '' : ' · ' + age(o.age_hours)}${
+      anyMoved ? ' · ▲▼ vs opening line'
+        : o.snapshots > 1 ? ' · unmoved since opening' : ''}</div></div>`;
+}
+
+function age(h) {
+  if (h < 1) return `${Math.round(60 * h)} min ago`;
+  if (h < 48) return `${Math.round(h)}h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
 function kickoff(d) {
   if (!d) return 'TBC';
   return new Date(d.replace(' ', 'T') + 'Z').toLocaleString([], {
@@ -287,7 +343,6 @@ function render(data) {
   el.innerHTML = data.fixtures.map(f => {
     const p = f.prediction;
     const mode = f.lineup_mode === 'manual' ? 'manual' : (p ? p.tag : 'none');
-    const mkt = f.odds ? f.odds.implied : null;
 
     let mid = `<div class="provtag" style="margin-bottom:6px">no prediction yet
       — run refresh_week.py</div>`;
@@ -304,20 +359,18 @@ function render(data) {
       <div class="headline ${call.k}">${call.label} — ${pct(call.p)}</div>
       <div class="prices">
         <div class="price h"><div class="lbl">${f.home.name}</div>
-          <div class="val">${pct(p.p_home)}</div>
-          ${mkt ? `<div class="mkt">mkt ${pct(mkt[0])}</div>` : ''}</div>
+          <div class="val">${pct(p.p_home)}</div></div>
         <div class="price d"><div class="lbl">Draw</div>
-          <div class="val">${pct(p.p_draw)}</div>
-          ${mkt ? `<div class="mkt">mkt ${pct(mkt[1])}</div>` : ''}</div>
+          <div class="val">${pct(p.p_draw)}</div></div>
         <div class="price a"><div class="lbl">${f.away.name}</div>
-          <div class="val">${pct(p.p_away)}</div>
-          ${mkt ? `<div class="mkt">mkt ${pct(mkt[2])}</div>` : ''}</div>
+          <div class="val">${pct(p.p_away)}</div></div>
       </div>
       <div class="bar" title="home / draw / away">
         <div class="h" style="flex:${p.p_home}"></div>
         <div class="d" style="flex:${p.p_draw}"></div>
         <div class="a" style="flex:${p.p_away}"></div>
       </div>
+      ${marketBoxes(f)}
       <div class="sect">
         <div class="slab">Most likely single scoreline</div>
         <div class="single">
@@ -331,7 +384,7 @@ function render(data) {
         <div class="dist">${top.slice(0, 5).map(s =>
           `<span class="d1"><b>${s.score}</b> ${pct1(s.p)}</span>`).join('')}</div>
       </div>
-      ${!f.odds ? '<div class="meta" style="margin-top:8px"><span>no market odds</span></div>' : ''}`;
+      `;
       // Data-quality warnings are no longer shown on the card — they crowded
       // the gameweek list. They still appear in full on the match page, which
       // is where the detail belongs.

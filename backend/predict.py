@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.db import connect
+from backend.market import blend_probs, implied_probs, latest_odds
 from models.config import (CHAMPIONSHIP_PRIOR, MARKET_BLEND_W, STYLE_ENABLED,
                            TRAIN_SEASONS, make_model)
 from models.backtest import promoted_prior
@@ -100,12 +101,10 @@ class Predictor:
         model's number stays the model's number. Absent when the fixture has no
         odds, which is the normal state until ODDS_API_KEY is set.
         """
-        row = self.conn.execute(
-            """SELECT odds_home, odds_draw, odds_away, bookmaker FROM market_odds
-               WHERE fixture_id=? ORDER BY ts DESC LIMIT 1""",
-            (fixture_id,)).fetchone()
-        if not row or not all(row[c] for c in
-                              ("odds_home", "odds_draw", "odds_away")):
+        row = latest_odds(self.conn, fixture_id)
+        implied = (implied_probs(row["odds_home"], row["odds_draw"],
+                                 row["odds_away"]) if row else None)
+        if implied is None:
             factors.append({
                 "name": "Model + market blend",
                 "active": False,
@@ -116,11 +115,8 @@ class Predictor:
             })
             return None
 
-        inv = [1 / row["odds_home"], 1 / row["odds_draw"], 1 / row["odds_away"]]
-        s = sum(inv)
-        implied = [x / s for x in inv]          # overround removed
         w = MARKET_BLEND_W
-        mixed = [w * p + (1 - w) * q for p, q in zip(probs, implied)]
+        mixed = blend_probs(probs, implied, w)
         factors.append({
             "name": "Model + market blend",
             "active": True,

@@ -77,7 +77,6 @@
   .price .lbl { font-size:10.5px; font-weight:600; color:var(--ink2);
                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .price .val { font-size:24px; font-weight:800; letter-spacing:-.6px; }
-  .price .mkt { font-size:11px; color:var(--ink3); }
   .price.h { background:var(--home-t); } .price.h .val { color:var(--home); }
   .price.d { background:var(--draw-t); } .price.d .val { color:#2eb8a5; }
   .price.a { background:var(--away-t); } .price.a .val { color:#f97b3d; }
@@ -102,6 +101,26 @@
               border:1px solid var(--line); border-radius:6px; padding:4px 9px;
               font-variant-numeric:tabular-nums; }
   .dist .d1 b { color:var(--ink); font-weight:700; }
+  /* Market: same three columns as .prices so home sits under home, but
+     outlined instead of filled — it is the comparison, not the prediction.
+     Matches the gameweek card, which is where most people see it first. */
+  .mkts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
+          max-width:520px; margin:0 auto; }
+  .mk { border:1px solid var(--line); border-radius:10px; background:var(--bg);
+        padding:9px 6px 7px; text-align:center; }
+  .mk .mlbl { font-size:10.5px; font-weight:600; color:var(--ink3);
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mk .mval { font-size:20px; font-weight:800; letter-spacing:-.5px;
+              font-variant-numeric:tabular-nums; }
+  .mk .mimp { font-size:11.5px; color:var(--ink3);
+              font-variant-numeric:tabular-nums; }
+  .mk.h { border-color:#243a63; } .mk.h .mval { color:var(--home); }
+  .mk.d { border-color:#164a42; } .mk.d .mval { color:#2eb8a5; }
+  .mk.a { border-color:#57301a; } .mk.a .mval { color:#f97b3d; }
+  .mk .up { color:#5ad19a; font-weight:700; }
+  .mk .dn { color:#f0806a; font-weight:700; }
+  .mfoot { font-size:11px; color:var(--ink3); margin-top:6px; }
+  .nomkt { font-size:12.5px; color:var(--ink3); font-style:italic; }
   .rout { margin:14px auto 0; max-width:520px; font-size:13px;
           color:var(--ink2); background:var(--bg); border:1px solid var(--line);
           border-radius:8px; padding:8px 12px; }
@@ -330,6 +349,37 @@ function resultCall(p, home, away) {
   ].sort((x, y) => y.p - x.p)[0];
 }
 
+// One box per outcome, mirroring the model's three tiles above: decimal price
+// as the headline number, implied probability under it, and the drift since
+// the opening snapshot — a price from three days ago and one from an hour ago
+// are very different claims, so the age is always stated.
+function marketBoxes(o, home, away) {
+  if (!o) return `<div class="nomkt">no market odds for this fixture</div>`;
+  const cls = ['h', 'd', 'a'], names = [home, 'Draw', away];
+  const drift = o.drift || [];
+  const anyMoved = drift.some(x => Math.abs(x) >= 0.005);
+  const boxes = cls.map((c, i) => {
+    const dv = drift[i];
+    const moved = dv != null && Math.abs(dv) >= 0.005;
+    return `<div class="mk ${c}">
+      <div class="mlbl">${names[i]}</div>
+      <div class="mval">${o.decimal[i].toFixed(2)}</div>
+      <div class="mimp">${pct(o.implied[i])}${moved
+        ? ` <span class="${dv > 0 ? 'up' : 'dn'}">${dv > 0 ? '▲' : '▼'}${
+            Math.abs(100 * dv).toFixed(1)}</span>`
+        : ''}</div></div>`;
+  }).join('');
+  const age = o.age_hours == null ? ''
+    : o.age_hours < 1 ? `${Math.round(60 * o.age_hours)} min ago`
+    : o.age_hours < 48 ? `${Math.round(o.age_hours)}h ago`
+    : `${Math.round(o.age_hours / 24)} days ago`;
+  return `<div class="mkts">${boxes}</div>
+    <div class="mfoot">${o.bookmaker || 'market'}${age ? ' · ' + age : ''}${
+      o.snapshots > 1 ? ` · ${o.snapshots} snapshots` : ''}${
+      anyMoved ? ' · ▲▼ vs opening line'
+        : o.snapshots > 1 ? ' · unmoved since opening' : ''}</div>`;
+}
+
 // Top scorelines straight off the published grid, so this and the heat map
 // below it can never disagree.
 function topScores(grid, n) {
@@ -413,7 +463,6 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     away: { ...d.away, formation: (prof.away || {}).formation },
   };
   const mode = d.lineup_mode === 'manual' ? 'manual' : (p ? p.tag : 'none');
-  const mkt = d.odds ? d.odds.implied : null;
   document.title = `${d.home.name} vs ${d.away.name} — Prem Predictor`;
 
   let html = `<div class="card hero">
@@ -438,15 +487,15 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       <div class="headline ${call.k}">${call.label} — ${pct(call.p)}</div></div>
     <div class="prices">
       <div class="price h"><div class="lbl">${d.home.name}</div>
-        <div class="val">${pct(p.p_home)}</div>
-        ${mkt ? `<div class="mkt">market ${pct(mkt[0])}</div>` : ''}</div>
+        <div class="val">${pct(p.p_home)}</div></div>
       <div class="price d"><div class="lbl">Draw</div>
-        <div class="val">${pct(p.p_draw)}</div>
-        ${mkt ? `<div class="mkt">market ${pct(mkt[1])}</div>` : ''}</div>
+        <div class="val">${pct(p.p_draw)}</div></div>
       <div class="price a"><div class="lbl">${d.away.name}</div>
-        <div class="val">${pct(p.p_away)}</div>
-        ${mkt ? `<div class="mkt">market ${pct(mkt[2])}</div>` : ''}</div>
+        <div class="val">${pct(p.p_away)}</div></div>
     </div>`;
+
+    html += `<div class="block"><div class="slab">Market</div>
+      ${marketBoxes(d.odds, d.home.name, d.away.name)}</div>`;
 
     html += `<div class="block">
       <div class="slab">Most likely single scoreline</div>

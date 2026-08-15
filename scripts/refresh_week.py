@@ -3,7 +3,11 @@
   1. pull new results (season CSVs via mirror)  -> matches
   2. pull understat xG + rosters for the current season's new matches
   3. pull/refresh the fixture list (kickoff moves, postponements)
-  4. Mode 1 (ideal XI) provisional predictions for the next gameweek
+  4. take an opening market snapshot (later refreshes move against it)
+  5. Mode 1 (ideal XI) provisional predictions for the next gameweek
+
+Odds keep refreshing between weekly runs — schedule scripts/pull_odds.py
+hourly; its own guards make it a no-op until kickoff is close.
 
 Run: .venv\\Scripts\\python scripts\\refresh_week.py
 """
@@ -32,7 +36,10 @@ def main():
     run("pull_squads.py")
     run("pull_managers.py")
     run("backfill_slots.py")
-    run("pull_odds.py")
+    # The weekly run is usually days out, well outside pull_odds' own refresh
+    # window, so widen it: an early snapshot is the baseline every later
+    # refresh moves against. The credit reserve still applies.
+    run("pull_odds.py", "--window-hours", "240", "--min-interval", "60")
 
     from backend.db import connect
     from backend.predict import Predictor, next_gameweek

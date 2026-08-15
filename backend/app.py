@@ -23,6 +23,7 @@ from flask import Flask, jsonify, request, send_from_directory
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import connect, DATA_DIR
+from backend.market import market_view
 from backend.predict import Predictor, next_gameweek, CURRENT_SEASON
 from models.fatigue import player_fatigue
 from models.player_ratings import RatingBook
@@ -69,6 +70,34 @@ def active_prediction(conn, fixture):
 
 PHOTO = ("https://resources.premierleague.com/premierleague/photos/players/"
          "{size}/{opta}.png")
+
+
+def refresh_blend_factor(factors, market):
+    """Keep the factor list honest about the blend after an odds refresh.
+
+    A prediction generated before its fixture had odds recorded "not applied"
+    forever, which now contradicts the live blend shown above it. Rewritten at
+    read time only — the stored row still records what fed the prediction.
+    """
+    if not market or not market.get("blend"):
+        return factors
+    imp = market["implied"]
+    entry = {
+        "name": "Model + market blend",
+        "active": True,
+        "effect": f"{int(100 * market['blend']['weight_model'])}/"
+                  f"{int(100 * (1 - market['blend']['weight_model']))} "
+                  "model/market — reported separately, not part of the "
+                  "model's own number",
+        "detail": f"{market.get('bookmaker') or 'market'} implied "
+                  f"{imp[0]:.0%}/{imp[1]:.0%}/{imp[2]:.0%}, "
+                  f"from the latest price snapshot",
+        "status": "separate-output",
+    }
+    out = [entry if f.get("name") == "Model + market blend" else f
+           for f in factors]
+    return out if any(f.get("name") == "Model + market blend"
+                      for f in factors) else out + [entry]
 
 
 def photo_url(opta_code, size="40x40"):
@@ -118,9 +147,6 @@ def api_gameweek(gw):
     out = []
     for f in fixtures:
         pred = active_prediction(conn, f)
-        odds = conn.execute(
-            """SELECT * FROM market_odds WHERE fixture_id=?
-               ORDER BY ts DESC LIMIT 1""", (f["id"],)).fetchone()
         before = (f["date"] or "")[:10] or None
         shapes = {side: preferred_formation(conn, tid, before)
                   for side, tid in (("home", f["hid"]), ("away", f["aid"]))}
@@ -150,16 +176,9 @@ def api_gameweek(gw):
                 "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
                 "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
             }
-        if odds:
-            inv = [1 / odds["odds_home"], 1 / odds["odds_draw"],
-                   1 / odds["odds_away"]]
-            s = sum(inv)
-            item["odds"] = {
-                "bookmaker": odds["bookmaker"], "ts": odds["ts"],
-                "decimal": [odds["odds_home"], odds["odds_draw"],
-                            odds["odds_away"]],
-                "implied": [round(x / s, 4) for x in inv],
-            }
+        # Read-time, so a line that moved after the prediction was generated
+        # shows the moved price rather than the snapshot it was blended with.
+        item["odds"] = market_view(conn, f["id"])
         out.append(item)
     return jsonify({"gameweek": gw, "next_gameweek": next_gameweek(conn),
                     "fixtures": out})
@@ -225,9 +244,14 @@ def api_fixture_detail(fid):
     history = [dict(r) for r in conn.execute(
         """SELECT tag, created_at, p_home, p_draw, p_away, home_xg, away_xg
            FROM predictions WHERE fixture_id=? ORDER BY created_at""", (fid,))]
-    odds = conn.execute(
-        "SELECT * FROM market_odds WHERE fixture_id=? ORDER BY ts DESC LIMIT 1",
-        (fid,)).fetchone()
+    model_probs = ([pred["p_home"], pred["p_draw"], pred["p_away"]]
+                   if pred else None)
+    # Latest snapshot, and the blend recomputed against it — the blend columns
+    # on the prediction row froze whatever line was current when it was written.
+    market = market_view(conn, fid, model_probs)
+    odds_history = [dict(r) for r in conn.execute(
+        """SELECT ts, odds_home, odds_draw, odds_away FROM market_odds
+           WHERE fixture_id=? ORDER BY ts""", (fid,))]
     from models.formation import team_profile
     before = (f["date"] or "")[:10] or None
     profiles = {side: team_profile(conn, tid, before)
@@ -254,7 +278,8 @@ def api_fixture_detail(fid):
         "status": f["status"], "lineup_mode": f["lineup_mode"],
         "home": {"id": f["hid"], "name": f["hn"], "crest": f["hc"]},
         "away": {"id": f["aid"], "name": f["an"], "crest": f["ac"]},
-        "prediction": None, "history": history, "odds": None,
+        "prediction": None, "history": history, "odds": market,
+        "odds_history": odds_history,
         "transfers_in": recent_transfers,
         "managers": managers, "profiles": profiles,
     }
@@ -270,19 +295,16 @@ def api_fixture_detail(fid):
             "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
             "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
             # what actually fed THIS prediction; older rows predate the column
-            "factors": json.loads(pred["factors"]) if pred["factors"] else [],
-            "blend": ({"p_home": pred["blend_home"],
-                       "p_draw": pred["blend_draw"],
-                       "p_away": pred["blend_away"]}
-                      if pred["blend_home"] is not None else None),
+            "factors": refresh_blend_factor(
+                json.loads(pred["factors"]) if pred["factors"] else [], market),
+            # live blend first; the stored columns are the fallback for rows
+            # whose fixture has since lost its odds
+            "blend": ((market or {}).get("blend")
+                      or ({"p_home": pred["blend_home"],
+                           "p_draw": pred["blend_draw"],
+                           "p_away": pred["blend_away"]}
+                          if pred["blend_home"] is not None else None)),
         }
-    if odds:
-        inv = [1 / odds["odds_home"], 1 / odds["odds_draw"], 1 / odds["odds_away"]]
-        s = sum(inv)
-        out["odds"] = {"bookmaker": odds["bookmaker"],
-                       "decimal": [odds["odds_home"], odds["odds_draw"],
-                                   odds["odds_away"]],
-                       "implied": [round(x / s, 4) for x in inv]}
     return jsonify(out)
 
 
