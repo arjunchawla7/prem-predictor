@@ -230,8 +230,6 @@
     border-bottom:1px solid var(--line); }
   .plain th { color:var(--ink3); font-weight:600; font-size:11.5px;
               text-transform:uppercase; letter-spacing:.4px; }
-  .tr-list { font-size:13px; color:var(--ink2); }
-  .tr-list div { padding:2px 0; }
   /* base button styling — the builder moved here from the gameweek page and
      brought its own .seg/.cancel rules but relied on these */
   button { background:var(--card); color:var(--ink2); border:1px solid var(--line);
@@ -762,22 +760,6 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     a team-news source. Traits are percentile ranks within this league window
     using shot, xG and corner data — this database has no possession or
     pressing data, so no claim is made about either.</div></div>`;
-
-  const ti = d.transfers_in;
-  if (ti && (ti.home.length || ti.away.length)) {
-    html += `<div class="card"><h2>Summer arrivals</h2><div class="xi2">
-      <div><strong>${d.home.name}</strong><div class="tr-list">
-        ${ti.home.map(t => `<div>${t.name} <span class="provtag">from
-        ${t.from_team || 'outside PL'}</span></div>`).join('') || '<div class="provtag">none tracked</div>'}
-      </div></div>
-      <div><strong>${d.away.name}</strong><div class="tr-list">
-        ${ti.away.map(t => `<div>${t.name} <span class="provtag">from
-        ${t.from_team || 'outside PL'}</span></div>`).join('') || '<div class="provtag">none tracked</div>'}
-      </div></div></div>
-      <div class="footnote">detected from registered-squad changes vs last
-      season's data (players arriving from outside the PL appear as new
-      signings with provisional ratings)</div></div>`;
-  }
 
   html += tempoCard;
 

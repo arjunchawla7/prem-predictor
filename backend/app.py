@@ -278,14 +278,6 @@ def api_fixture_detail(fid):
                            "nationality": m["nationality"],
                            "photo": photo_url(m["opta_code"], "110x140")}
                           if m else None)
-    recent_transfers = {}
-    for side, tid in (("home", f["hid"]), ("away", f["aid"])):
-        recent_transfers[side] = [dict(r) for r in conn.execute(
-            """SELECT p.name, ft.name AS from_team
-               FROM transfers tr JOIN players p ON p.id=tr.player_id
-               LEFT JOIN teams ft ON ft.id=tr.from_team_id
-               WHERE tr.to_team_id=? AND tr.from_team_id IS NOT NULL
-               ORDER BY tr.detected_at DESC LIMIT 8""", (tid,))]
     out = {
         "id": f["id"], "date": f["date"], "gameweek": f["gameweek"],
         "status": f["status"], "lineup_mode": f["lineup_mode"],
@@ -293,7 +285,6 @@ def api_fixture_detail(fid):
         "away": {"id": f["aid"], "name": f["an"], "crest": f["ac"]},
         "prediction": None, "history": history, "odds": market,
         "odds_history": odds_history,
-        "transfers_in": recent_transfers,
         "managers": managers, "profiles": profiles,
     }
     if pred:
