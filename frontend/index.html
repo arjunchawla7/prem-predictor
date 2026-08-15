@@ -114,6 +114,28 @@
           color:var(--ink2); align-items:center; }
   .meta .sc { color:var(--ink2); }
   .meta .sc b { color:var(--ink); font-weight:700; }
+
+  /* Three separate claims, ranked by how much confidence each deserves:
+     the result probability is the prediction, the single most likely
+     scoreline is a curiosity, and the distribution is the honest picture. */
+  .slab { font-size:10.5px; font-weight:700; color:var(--ink3);
+          text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
+  .sect { margin-top:11px; padding-top:10px; border-top:1px solid var(--line); }
+  .headline { font-size:23px; font-weight:800; letter-spacing:-.6px;
+              line-height:1.2; margin-bottom:10px;
+              font-variant-numeric:tabular-nums; }
+  .headline.h { color:var(--home); }
+  .headline.d { color:#2eb8a5; }
+  .headline.a { color:#f97b3d; }
+  .single { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .single .sv { font-size:15px; font-weight:700; color:var(--ink2);
+                font-variant-numeric:tabular-nums; }
+  .single .sn { font-size:11.5px; color:var(--ink3); }
+  .dist { display:flex; flex-wrap:wrap; gap:6px; }
+  .dist .d1 { font-size:12px; color:var(--ink2); background:var(--bg);
+              border:1px solid var(--line); border-radius:6px; padding:3px 8px;
+              font-variant-numeric:tabular-nums; }
+  .dist .d1 b { color:var(--ink); font-weight:700; }
   .warnrow { margin-top:8px; background:var(--warn-t); color:var(--warn);
              border-radius:8px; padding:6px 10px; font-size:12px; }
   .fx-foot { display:flex; justify-content:space-between; align-items:center;
@@ -185,6 +207,20 @@
 <script>
 let CUR_GW = null;
 const pct = x => Math.round(100 * x) + '%';
+// scoreline probabilities sit in the 5-15% band, where rounding to whole
+// percent throws away the ordering that makes the distribution readable
+const pct1 = x => (100 * x).toFixed(1) + '%';
+
+// The headline claim: which of the three results the model favours, and by
+// how much. Deliberately NOT the exact scoreline — see the note in render().
+function resultCall(p, home, away) {
+  const opts = [
+    { k: 'h', label: `${home} win`, p: p.p_home },
+    { k: 'd', label: 'Draw', p: p.p_draw },
+    { k: 'a', label: `${away} win`, p: p.p_away },
+  ];
+  return opts.sort((x, y) => y.p - x.p)[0];
+}
 
 function gwStrip(cur) {
   const el = document.getElementById('gw-strip');
@@ -256,7 +292,16 @@ function render(data) {
     let mid = `<div class="provtag" style="margin-bottom:6px">no prediction yet
       — run refresh_week.py</div>`;
     if (p) {
+      // Three sections, ranked by how much weight each deserves. The result
+      // probability is the actual prediction and carries the visual weight;
+      // the single most likely scoreline is only ever ~12-15% likely, so it
+      // is shown small and labelled for what it is; the distribution behind
+      // it makes plain that the top scoreline barely leads the field.
+      const call = resultCall(p, f.home.name, f.away.name);
+      const top = p.top_scores || [];
       mid = `
+      <div class="slab">Result</div>
+      <div class="headline ${call.k}">${call.label} — ${pct(call.p)}</div>
       <div class="prices">
         <div class="price h"><div class="lbl">${f.home.name}</div>
           <div class="val">${pct(p.p_home)}</div>
@@ -273,11 +318,20 @@ function render(data) {
         <div class="d" style="flex:${p.p_draw}"></div>
         <div class="a" style="flex:${p.p_away}"></div>
       </div>
-      <div class="meta">
-        <span class="sc">likely: ${p.top_scores.slice(0, 3).map(s =>
-          `<b>${s.score}</b> ${pct(s.p)}`).join(' · ')}</span>
-        ${!f.odds ? '<span>no market odds</span>' : ''}
-      </div>`;
+      <div class="sect">
+        <div class="slab">Most likely single scoreline</div>
+        <div class="single">
+          <span class="sv">${top.length ? top[0].score : '—'}</span>
+          <span class="sn">${top.length ? pct1(top[0].p) : ''} — highest of many
+          close options, not a confident call</span>
+        </div>
+      </div>
+      <div class="sect">
+        <div class="slab">Scoreline distribution</div>
+        <div class="dist">${top.slice(0, 5).map(s =>
+          `<span class="d1"><b>${s.score}</b> ${pct1(s.p)}</span>`).join('')}</div>
+      </div>
+      ${!f.odds ? '<div class="meta" style="margin-top:8px"><span>no market odds</span></div>' : ''}`;
       // Data-quality warnings are no longer shown on the card — they crowded
       // the gameweek list. They still appear in full on the match page, which
       // is where the detail belongs.

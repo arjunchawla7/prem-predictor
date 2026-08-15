@@ -81,6 +81,27 @@
   .price.h { background:var(--home-t); } .price.h .val { color:var(--home); }
   .price.d { background:var(--draw-t); } .price.d .val { color:#2eb8a5; }
   .price.a { background:var(--away-t); } .price.a .val { color:#f97b3d; }
+  /* Three separate claims, ranked by how much confidence each deserves —
+     result probability, then the single most likely scoreline, then the
+     distribution it barely leads. Mirrors the gameweek card. */
+  .slab { font-size:10.5px; font-weight:700; color:var(--ink3);
+          text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
+  .hero .block { max-width:520px; margin:16px auto 0; text-align:left;
+                 padding-top:14px; border-top:1px solid var(--line); }
+  .headline { font-size:30px; font-weight:800; letter-spacing:-.8px;
+              line-height:1.15; font-variant-numeric:tabular-nums; }
+  .headline.h { color:var(--home); }
+  .headline.d { color:#2eb8a5; }
+  .headline.a { color:#f97b3d; }
+  .single { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+  .single .sv { font-size:19px; font-weight:800; color:var(--ink2);
+                letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
+  .single .sn { font-size:12px; color:var(--ink3); }
+  .dist { display:flex; flex-wrap:wrap; gap:7px; }
+  .dist .d1 { font-size:12.5px; color:var(--ink2); background:var(--bg);
+              border:1px solid var(--line); border-radius:6px; padding:4px 9px;
+              font-variant-numeric:tabular-nums; }
+  .dist .d1 b { color:var(--ink); font-weight:700; }
   .rout { margin:14px auto 0; max-width:520px; font-size:13px;
           color:var(--ink2); background:var(--bg); border:1px solid var(--line);
           border-radius:8px; padding:8px 12px; }
@@ -294,7 +315,29 @@
 <main id="main">loading…</main>
 <script>
 const pct = x => Math.round(100 * x) + '%';
+// scoreline probabilities sit in the 5-15% band, where rounding to whole
+// percent throws away the ordering that makes the distribution readable
+const pct1 = x => (100 * x).toFixed(1) + '%';
 const fid = new URLSearchParams(location.search).get('id');
+
+// The headline claim: which of the three results the model favours. NOT the
+// exact scoreline — that answers a different, much less confident question.
+function resultCall(p, home, away) {
+  return [
+    { k: 'h', label: `${home} win`, p: p.p_home },
+    { k: 'd', label: 'Draw', p: p.p_draw },
+    { k: 'a', label: `${away} win`, p: p.p_away },
+  ].sort((x, y) => y.p - x.p)[0];
+}
+
+// Top scorelines straight off the published grid, so this and the heat map
+// below it can never disagree.
+function topScores(grid, n) {
+  const flat = [];
+  grid.forEach((row, i) => row.forEach((v, j) =>
+    flat.push({ score: `${i}-${j}`, p: v })));
+  return flat.sort((a, b) => b.p - a.p).slice(0, n);
+}
 
 function fatCls(f) { return f >= 70 ? 'fat-hi' : f >= 50 ? 'fat-md' : 'fat-lo'; }
 
@@ -384,7 +427,16 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
         ${p ? `<div class="xg">xG ${p.away_xg.toFixed(2)}</div>` : ''}</div>
     </div>`;
   if (p) {
-    html += `<div class="prices">
+    // Three sections, ranked by how much weight each deserves. The result
+    // probability is the actual prediction and carries the visual weight; the
+    // single most likely scoreline is only ever ~12-15% likely, so it is shown
+    // small and labelled for what it is; the distribution behind it makes
+    // plain that the top scoreline barely leads the field.
+    const call = resultCall(p, d.home.name, d.away.name);
+    const top = topScores(p.grid, 5);
+    html += `<div class="block"><div class="slab">Result</div>
+      <div class="headline ${call.k}">${call.label} — ${pct(call.p)}</div></div>
+    <div class="prices">
       <div class="price h"><div class="lbl">${d.home.name}</div>
         <div class="val">${pct(p.p_home)}</div>
         ${mkt ? `<div class="mkt">market ${pct(mkt[0])}</div>` : ''}</div>
@@ -394,6 +446,18 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       <div class="price a"><div class="lbl">${d.away.name}</div>
         <div class="val">${pct(p.p_away)}</div>
         ${mkt ? `<div class="mkt">market ${pct(mkt[2])}</div>` : ''}</div>
+    </div>`;
+
+    html += `<div class="block">
+      <div class="slab">Most likely single scoreline</div>
+      <div class="single"><span class="sv">${top[0].score}</span>
+        <span class="sn">${pct1(top[0].p)} — the highest of many close options,
+        not a confident call. The result above is the prediction.</span></div>
+    </div>
+    <div class="block">
+      <div class="slab">Scoreline distribution</div>
+      <div class="dist">${top.map(s =>
+        `<span class="d1"><b>${s.score}</b> ${pct1(s.p)}</span>`).join('')}</div>
     </div>`;
 
     // "Most likely score" is 1-1 for most fixtures at only ~12%, which reads
