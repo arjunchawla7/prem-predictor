@@ -83,7 +83,7 @@ const SECTIONS = [
   ['numbers', 'Headline numbers'], ['how', 'How it works'],
   ['backtest', 'Backtest'], ['settled', 'Settled experiments'],
   ['calibration', 'Calibration'], ['prov', 'Provisional vs final'],
-  ['derived', 'Derived stats'],
+  ['derived', 'Derived stats'], ['counts', 'Corners &amp; cards'],
   ['scorelines', 'Scoreline audit'], ['tail', 'Big scorelines'],
   ['limits', 'Known limitations'], ['situational', 'Situational records'],
   ['sources', 'Data sources &amp; gaps'], ['pulls', 'Recent data pulls'],
@@ -276,6 +276,52 @@ fetch('/api/performance').then(r => r.json()).then(d => {
   <p class="cnt">Calibration by bucket is in the script's output. The middle
   buckets, where most fixtures land, track within a couple of points; the
   sparse extremes (n=10-30) wander, which is what small buckets do.</p>
+  </div>`;
+
+  html += `<div class="card" id="counts">
+  <h2>Corners and cards — measured, and not good enough to forecast</h2>
+  <p>Corners and cards come from different mechanisms than goals, so they were
+  given their own independent Poisson fits — team volume produced, volume
+  induced in the opponent, home/away baselines, time decay and shrinkage —
+  rather than being derived from the goals grid. Then they were scored the
+  same way as everything else, with
+  <code>scripts/counts_backtest.py</code>.</p>
+  <p><strong>Neither beat simply predicting the league average.</strong> That
+  is the finding, and it is why the match pages show them as typical volume
+  with a "context only" label and offer no threshold probabilities.</p>
+  <table>
+   <tr><th>model</th><th>MAE on the match total</th>
+       <th>league-average baseline</th><th>team-form baseline</th></tr>
+   <tr><td>Corners</td><td>2.684</td>
+       <td class="bad">2.658 (model worse by .026)</td><td>2.690</td></tr>
+   <tr><td>Yellow cards</td><td>1.585</td>
+       <td class="bad">1.559 (model worse by .027)</td><td>1.587</td></tr>
+  </table>
+  <p style="margin-top:12px">On probability scoring the picture is only
+  slightly kinder: for cards, Brier 0.2452 against 0.2472 for the base rate
+  and log-loss 0.6836 against 0.6876 — a hair better. For corners it is worse
+  than the base rate on both (Brier +0.0069, log-loss +0.0170). Accuracy at a
+  0.5 threshold is below "always call the majority" for both.</p>
+  <h3>Was it just the level drifting?</h3>
+  <p>Both models over-predicted — 10.49 corners against 10.00 actual, 4.03
+  cards against 3.75 — the same pattern the goals model shows on this season.
+  Faster time decay closes that gap (10.06 corners at a 35-day half-life) but
+  makes the error <em>worse</em> at every setting tried, so the level was not
+  the problem. There is very little per-match signal here beyond "about ten
+  corners and four cards happen".</p>
+  <h3>The referee factor</h3>
+  <p>Referee strictness is real and measurable — the fitted factors span
+  0.88 to 1.14, and the strictest official in 2025-26 averaged 4.60 cards a
+  match against 3.17 for the most lenient. It still <strong>made the cards
+  model worse on every measure</strong> (MAE +0.011, Brier +0.0014, log-loss
+  +0.0029), so it is fitted and displayed as context but never multiplied into
+  the estimate. Referee appointments are also only published close to kickoff,
+  so a model depending on them would be unavailable for most of the week
+  anyway.</p>
+  <p class="cnt">Why cards are hardest: match-to-match spread is about half the
+  average itself (sd 1.95 on a mean of 3.75), against a third for corners
+  (sd 3.27 on 10.00). A quantity that noisy needs a much stronger signal than
+  team identity to beat its own average.</p>
   </div>`;
 
   html += `<div class="card" id="scorelines">

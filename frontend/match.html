@@ -151,6 +151,23 @@
             font-variant-numeric:tabular-nums; }
   .tg .cp { font-size:10px; color:var(--ink3);
             font-variant-numeric:tabular-nums; }
+  /* Tier 2 counts did not beat a league-average baseline in testing, so they
+     are drawn quieter than everything around them and say so in words. */
+  .ctx-card { opacity:.92; }
+  .cbar { display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+          gap:10px; margin:8px 0 2px; }
+  .cbar .cv { font-size:19px; font-weight:800; letter-spacing:-.4px;
+              font-variant-numeric:tabular-nums; }
+  .cbar .cmid { font-size:11px; color:var(--ink3); text-align:center;
+                text-transform:uppercase; letter-spacing:.4px;
+                font-weight:700; }
+  .cbar .l { text-align:left; } .cbar .r { text-align:right; }
+  .cnote { font-size:11.5px; color:var(--ink3); margin-top:8px;
+           padding-top:8px; border-top:1px solid var(--line); }
+  .lowconf { display:inline-block; font-size:10px; font-weight:700;
+             letter-spacing:.4px; text-transform:uppercase; padding:2px 7px;
+             border-radius:999px; background:var(--warn-t); color:var(--warn);
+             margin-left:6px; vertical-align:middle; }
   .gridwrap { overflow-x:auto; }
   table.heat { border-collapse:separate; border-spacing:2px; margin:0 auto; }
   table.heat td, table.heat th { width:52px; height:36px; text-align:center;
@@ -659,6 +676,43 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       <h2 style="margin:16px 0 4px">Total goals in the match</h2>
       <div class="tg">${bars}</div>
       <div class="axis">% chance of each total</div></div>`;
+    }
+
+    // Fitted independently of the goals grid, on the corners/cards columns of
+    // the results feed. Both failed to beat "predict the league average" on
+    // the 2025-26 holdout, so they are presented as typical volume, not as a
+    // forecast, and no threshold probabilities are offered.
+    const ct = p.counts;
+    if (ct) {
+      const row = (label, v, unit) => `<div class="cbar">
+        <div class="l"><div class="cv">${v.home.toFixed(1)}</div>
+          <div class="axis" style="text-align:left">${d.home.name}</div></div>
+        <div class="cmid">${label}<br><span style="font-size:15px;
+          color:var(--ink)">${v.total.toFixed(1)}</span><br>${unit}</div>
+        <div class="r"><div class="cv">${v.away.toFixed(1)}</div>
+          <div class="axis" style="text-align:right">${d.away.name}</div></div>
+      </div>`;
+      const ref = ct.referee || {};
+      html += `<div class="card ctx-card">
+      <h2>Tempo &amp; discipline <span class="lowconf">context only</span></h2>
+      <p class="lede">Typical corner and card volume for these two sides,
+      adjusted for the opponent. Fitted separately from the goals model — and
+      <strong>neither beat simply predicting the league average</strong> in
+      testing, so read them as a description of how these teams usually play,
+      not as a forecast. <a href="/performance#counts">The numbers →</a></p>
+      ${row('Corners', ct.corners, 'expected')}
+      ${row('Yellow cards', ct.cards, 'expected')}
+      <div class="cnote">Cards are the noisier of the two — match-to-match
+      spread is about half the average itself, against a third for corners.
+      ${ref.factor != null
+        ? `Referee ${ref.name} runs ${((ref.factor - 1) * 100).toFixed(0)}%
+           ${ref.factor >= 1 ? 'above' : 'below'} an average referee for cards,
+           measured but <strong>not applied</strong> — including it made the
+           model worse.`
+        : `Referee appointments are published close to kickoff and are not
+           known yet; referee strictness is measured but not applied either
+           way, because including it made the model worse.`}</div>
+      </div>`;
     }
   }
 

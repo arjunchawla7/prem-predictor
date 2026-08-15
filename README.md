@@ -46,6 +46,7 @@ run unattended to be worth anything — see below.
 - **Match page** (any fixture card is a link) — the same three parts, then the full scoreline heatmap, position-grouped lineups on a pitch, teamsheet (manager, derived preferred formation, tactical traits), summer arrivals, factor list for that specific prediction, and prediction history.
 - **Manual lineup (Mode 3)** — "edit XI" on any fixture: pick exactly 11 per side (or leave one side untouched). Locks the fixture to manual — automatic rebuilds skip it until you hit "reset to auto".
 - **Derived match stats (Tier 1)** — each match page carries a "Goals & scoring patterns" card: chance of 3+ goals, both teams scoring, a clean sheet either side, expected total goals, and the full total-goals distribution. These are **sums over regions of the same scoreline grid** the result probabilities come from — nothing extra is fitted, so they inherit the goals model's calibration exactly and can never disagree with the scorelines shown beside them. Gameweek cards carry the same three headline figures as chips. Backtested, see below.
+- **Tempo & discipline (Tier 2)** — expected corners and yellow cards per side, from **independent Poisson fits** on the corners/cards columns of the results feed (team volume produced, volume induced in the opponent, home/away baselines, time decay, shrinkage). Shown on match pages as *context only*: neither model beat predicting the league average on the 2025-26 holdout, so no threshold probabilities are offered and the card says so in plain words. Referee strictness is fitted and displayed but **not applied** — it made the model worse. See below.
 - **/performance** — the single detail page: headline numbers, how the model works, layer-by-layer backtest, settled experiments, calibration, provisional-vs-final drift, the scoreline audit, the 4+ goal caveat, known limitations, situational-records findings, data sources and gaps, and the data-pull log. Linked from the header of every page and from a one-line footer on the gameweek view.
 
 The accuracy figures deliberately do **not** appear on the gameweek or match pages. They used to open the gameweek view as four stat tiles, which asked a first-time visitor to weigh the model's limitations before looking at a single prediction. Nothing was softened in moving them — the detail page carries more than it did before, not less.
@@ -128,6 +129,23 @@ Two things worth knowing about these numbers:
 
 **Real, but small.** Both beat the honest floor — always predicting the base rate — on every measure. Neither is a large edge: these are near-even events, and a couple of points over "guess the common answer every week" is what a grid-derived number earns. Both also run slightly high (+1.7pp and +2.1pp), the same low-scoring-season effect as the 4+ goal figure: 2025-26 averaged 2.75 goals a match against 3.02 across the training seasons.
 
+### Corners and cards (Tier 2): measured, not good enough to forecast
+
+`python scripts/counts_backtest.py`. Independent Poisson fits, same walk-forward discipline. Two baselines, because "close on average" is nearly free for a quantity whose league mean barely moves.
+
+| model | MAE on match total | league-average baseline | team-form baseline |
+|---|---|---|---|
+| Corners | 2.684 | **2.658** (model worse by .026) | 2.690 |
+| Yellow cards | 1.585 | **1.559** (model worse by .027) | 1.587 |
+
+On probability scoring, cards are a hair better than their base rate (Brier 0.2452 vs 0.2472; log-loss 0.6836 vs 0.6876) and corners are worse on both (+0.0069, +0.0170). Accuracy at a 0.5 threshold is below "always call the majority" for both.
+
+**It wasn't level drift.** Both over-predicted (10.49 corners vs 10.00; 4.03 cards vs 3.75), matching the goals model's behaviour on this season. Faster decay closes the level gap (10.06 at a 35-day half-life) but makes error *worse* at every setting swept — there is little per-match signal beyond "about ten corners and four cards happen".
+
+**The referee factor made cards worse** (MAE +0.011, Brier +0.0014, log-loss +0.0029) despite a genuine 0.88-1.14 spread in fitted strictness, and despite the strictest 2025-26 official averaging 4.60 cards a match against 3.17 for the most lenient. It is fitted and shown as context, never multiplied in (`APPLY_REFEREE = False` in `backend/counts_service.py`). Referee appointments are also only published close to kickoff — `matchOfficials` in the PL fixture API is empty days out — so depending on them would leave the estimate unavailable most of the week.
+
+Why cards are hardest: match-to-match spread is about half the mean (sd 1.95 on 3.75), against a third for corners (sd 3.27 on 10.00).
+
 ### Is 1-1 dominating the grid? (audited, no)
 
 `python scripts/scoreline_audit.py -n 20` samples fixtures across the range of expected goals and prints the watched cells, the actual top scorelines, and the gap to second. Across 20 fixtures the top scoreline averages **12.6%** (range 9.6-15.2%) with a mean **3.7pp** gap to second, and it correctly yields to 2-0 in mismatches — ordinary Poisson behaviour, nothing running away.
@@ -157,14 +175,15 @@ Genuinely unbeaten in 55 — and still not usable: Liverpool are 74/74 and Leice
 
 ```
 backend/   db.py (schema), predict.py (engine), app.py (Flask),
-           market.py (overround removal, blend, odds snapshot history)
+           market.py (overround removal, blend, odds snapshot history),
+           counts_service.py (live corners/cards, referee not applied)
 models/    config (settled settings), dixon_coles, player_ratings, fatigue,
            lineup, travel, style, formation, situational, backtest, evaluate,
-           derived (grid-derived match stats)
+           derived (grid-derived match stats), counts (corners/cards)
 scripts/   data pulls, refresh_week, rebuild_confirmed, pull_odds (scheduled),
            backtests, sweeps, accuracy_pass, situational_report,
            pull_odds_history, scoreline_audit, tail_check,
-           derived_backtest
+           derived_backtest, counts_backtest
 frontend/  index.html (gameweek), match.html (fixture detail), performance.html
 data/      prem.db, raw CSVs/JSON cache, backtests/, ca_bundle.pem
 tests/     model sanity tests (pytest)

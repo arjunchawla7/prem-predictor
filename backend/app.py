@@ -23,6 +23,7 @@ from flask import Flask, jsonify, request, send_from_directory
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from backend.db import connect, DATA_DIR
+from backend.counts_service import CountService
 from backend.market import market_view
 from backend.predict import Predictor, next_gameweek, CURRENT_SEASON
 from models.derived import derived_stats
@@ -31,6 +32,7 @@ from models.player_ratings import RatingBook
 
 app = Flask(__name__, static_folder=str(ROOT / "frontend"))
 _predictor = None
+_counts = None
 
 
 def predictor():
@@ -38,6 +40,13 @@ def predictor():
     if _predictor is None:
         _predictor = Predictor(connect())
     return _predictor
+
+
+def counts():
+    global _counts
+    if _counts is None:
+        _counts = CountService(connect())
+    return _counts
 
 
 def db():
@@ -296,6 +305,9 @@ def api_fixture_detail(fid):
             "away_xg": pred["away_xg"],
             "grid": json.loads(pred["score_grid"]),
             "derived": derived_stats(json.loads(pred["score_grid"])),
+            # fitted separately from the goals grid, and shown as context
+            # rather than prediction — see backend/counts_service.py
+            "counts": counts().for_fixture(f["hn"], f["an"]),
             "notes": pred["notes"], "partial_data": bool(pred["partial_data"]),
             "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
             "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
