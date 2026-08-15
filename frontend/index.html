@@ -362,6 +362,15 @@ function render(data) {
         <div class="dist">${top.slice(0, 5).map(s =>
           `<span class="d1"><b>${s.score}</b> ${pct1(s.p)}</span>`).join('')}</div>
       </div>
+      ${p.derived ? `<div class="sect">
+        <div class="slab">Goals</div>
+        <div class="dist">
+          <span class="d1"><b>3+ goals</b> ${pct(p.derived.over)}</span>
+          <span class="d1"><b>Both score</b> ${pct(p.derived.btts)}</span>
+          <span class="d1"><b>Expected</b> ${
+            p.derived.expected_total_goals.toFixed(2)}</span>
+        </div>
+      </div>` : ''}
       `;
       // Data-quality warnings are no longer shown on the card — they crowded
       // the gameweek list. They still appear in full on the match page, which

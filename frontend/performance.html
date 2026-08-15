@@ -83,6 +83,7 @@ const SECTIONS = [
   ['numbers', 'Headline numbers'], ['how', 'How it works'],
   ['backtest', 'Backtest'], ['settled', 'Settled experiments'],
   ['calibration', 'Calibration'], ['prov', 'Provisional vs final'],
+  ['derived', 'Derived stats'],
   ['scorelines', 'Scoreline audit'], ['tail', 'Big scorelines'],
   ['limits', 'Known limitations'], ['situational', 'Situational records'],
   ['sources', 'Data sources &amp; gaps'], ['pulls', 'Recent data pulls'],
@@ -240,6 +241,42 @@ fetch('/api/performance').then(r => r.json()).then(d => {
     season starts and confirmed-lineup rebuilds run.</p>`;
   }
   html += '</div>';
+
+  html += `<div class="card" id="derived">
+  <h2>Derived match stats — do they hold up?</h2>
+  <p>The goals figures on a match page (3+ goals, both teams score, clean
+  sheets, expected total) are sums over regions of the same scoreline grid the
+  result probabilities come from. Nothing extra is fitted, so they inherit the
+  goals model's calibration exactly — and its faults with it. Scored on the
+  same 2025-26 walk-forward holdout, with
+  <code>scripts/derived_backtest.py</code>.</p>
+  <table>
+   <tr><th>stat</th><th>happened</th><th>accuracy</th>
+       <th>vs always-majority</th><th>Brier ↓</th><th>log-loss ↓</th></tr>
+   <tr><td>3 or more goals</td><td>55.0%</td><td>58.2%</td>
+       <td class="good">+3.2pp</td>
+       <td>0.2436 <span class="cnt">(base rate 0.2475)</span></td>
+       <td>0.6805 <span class="cnt">(0.6881)</span></td></tr>
+   <tr><td>Both teams score</td><td>56.1%</td><td>58.4%</td>
+       <td class="good">+2.4pp</td>
+       <td>0.2422 <span class="cnt">(base rate 0.2463)</span></td>
+       <td>0.6774 <span class="cnt">(0.6858)</span></td></tr>
+  </table>
+  <p style="margin-top:12px"><strong>Real, but small.</strong> Both beat the
+  honest floor — always predicting the base rate — on every measure, and both
+  beat always calling the majority class. Neither is a large edge: these are
+  near-even events, and a couple of points of accuracy over "guess the common
+  answer every week" is what a grid-derived number earns. Read them as
+  context on a match, not as confident calls.</p>
+  <p><strong>Both run slightly high</strong>, by 1.7 points on 3+ goals and 2.1
+  on both-teams-score. That is the same low-scoring-season effect described
+  under big scorelines below: 2025-26 averaged 2.75 goals a match against 3.02
+  across the training seasons, and the model, trained mostly on
+  higher-scoring years, kept expecting the older rate.</p>
+  <p class="cnt">Calibration by bucket is in the script's output. The middle
+  buckets, where most fixtures land, track within a couple of points; the
+  sparse extremes (n=10-30) wander, which is what small buckets do.</p>
+  </div>`;
 
   html += `<div class="card" id="scorelines">
   <h2>Is one scoreline dominating the grid?</h2>

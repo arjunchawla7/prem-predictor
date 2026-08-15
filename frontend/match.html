@@ -125,6 +125,32 @@
              color:var(--warn); border-radius:8px; padding:7px 12px;
              font-size:12.5px; }
 
+  /* Derived analytics: same visual weight as the grid they come from, and
+     never more — they are a second view of one model, not a second opinion. */
+  .dgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:560px){ .dgrid { grid-template-columns:1fr; } }
+  .dbox { border:1px solid var(--line); border-radius:10px; background:var(--bg);
+          padding:11px 13px; }
+  .dbox .dk { font-size:11px; font-weight:700; color:var(--ink3);
+              text-transform:uppercase; letter-spacing:.4px; }
+  .dbox .dv { font-size:23px; font-weight:800; letter-spacing:-.6px;
+              color:var(--ink); font-variant-numeric:tabular-nums; }
+  .dbox .ds { font-size:11.5px; color:var(--ink3); }
+  .dsplit { display:flex; height:7px; border-radius:4px; overflow:hidden;
+            gap:2px; margin-top:7px; }
+  .dsplit .on { background:var(--home); border-radius:2px; }
+  .dsplit .off { background:var(--line2); border-radius:2px; }
+  .tg { display:flex; align-items:flex-end; gap:6px; margin-top:4px;
+        height:74px; }
+  .tg .col { flex:1; display:flex; flex-direction:column;
+             justify-content:flex-end; align-items:center; gap:3px; }
+  .tg .bar2 { width:100%; background:#2c4a86; border-radius:3px 3px 0 0;
+              min-height:2px; }
+  .tg .col.peak .bar2 { background:var(--home); }
+  .tg .cl { font-size:10.5px; color:var(--ink3);
+            font-variant-numeric:tabular-nums; }
+  .tg .cp { font-size:10px; color:var(--ink3);
+            font-variant-numeric:tabular-nums; }
   .gridwrap { overflow-x:auto; }
   table.heat { border-collapse:separate; border-spacing:2px; margin:0 auto; }
   table.heat td, table.heat th { width:52px; height:36px; text-align:center;
@@ -594,6 +620,46 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     <div class="axis">rows = ${d.home.name} goals · columns = ${d.away.name}
     goals · cell = % chance (0-5 shown)</div></div></div>`;
 
+    // Sums over the regions of the grid above. No separate fitting, so these
+    // inherit the goals model's calibration exactly — including its habit of
+    // running slightly high on a low-scoring season.
+    const dv = p.derived;
+    if (dv) {
+      const maxp = Math.max(...dv.total_goals);
+      const bars = dv.total_goals.map((q, k) => `<div class="col${
+        q === maxp ? ' peak' : ''}">
+        <div class="cp">${(100 * q).toFixed(0)}</div>
+        <div class="bar2" style="height:${Math.round(58 * q / maxp)}px"></div>
+        <div class="cl">${k === 6 ? '6+' : k}</div></div>`).join('');
+      const split = (on, off) => `<div class="dsplit">
+        <div class="on" style="flex:${on}"></div>
+        <div class="off" style="flex:${off}"></div></div>`;
+      html += `<div class="card"><h2>Goals &amp; scoring patterns</h2>
+      <p class="lede">Derived from the scoreline grid above, not fitted
+      separately — a different view of the same model.
+      <a href="/performance#derived">How well these hold up →</a></p>
+      <div class="dgrid">
+        <div class="dbox"><div class="dk">3 or more goals</div>
+          <div class="dv">${pct(dv.over)}</div>
+          <div class="ds">two or fewer: ${pct(dv.under)}</div>
+          ${split(dv.over, dv.under)}</div>
+        <div class="dbox"><div class="dk">Both teams score</div>
+          <div class="dv">${pct(dv.btts)}</div>
+          <div class="ds">at least one blank: ${pct(dv.btts_no)}</div>
+          ${split(dv.btts, dv.btts_no)}</div>
+        <div class="dbox"><div class="dk">Clean sheets</div>
+          <div class="dv" style="font-size:16px">${d.home.name} ${
+            pct(dv.home_clean_sheet)} · ${d.away.name} ${
+            pct(dv.away_clean_sheet)}</div>
+          <div class="ds">chance of keeping the opposition scoreless</div></div>
+        <div class="dbox"><div class="dk">Expected total goals</div>
+          <div class="dv">${dv.expected_total_goals.toFixed(2)}</div>
+          <div class="ds">mean of the distribution below</div></div>
+      </div>
+      <h2 style="margin:16px 0 4px">Total goals in the match</h2>
+      <div class="tg">${bars}</div>
+      <div class="axis">% chance of each total</div></div>`;
+    }
   }
 
   const sheet = side => {

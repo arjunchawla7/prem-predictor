@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 from backend.db import connect, DATA_DIR
 from backend.market import market_view
 from backend.predict import Predictor, next_gameweek, CURRENT_SEASON
+from models.derived import derived_stats
 from models.fatigue import player_fatigue
 from models.player_ratings import RatingBook
 
@@ -172,6 +173,9 @@ def api_gameweek(gw):
                 "home_xg": pred["home_xg"], "away_xg": pred["away_xg"],
                 "top_scores": [{"score": f"{i}-{j}", "p": round(p, 4)}
                                for i, j, p in top],
+                # sums over the same grid — free, and can never disagree
+                # with the scorelines shown next to them
+                "derived": derived_stats(grid),
                 "notes": pred["notes"], "partial_data": bool(pred["partial_data"]),
                 "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
                 "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),
@@ -291,6 +295,7 @@ def api_fixture_detail(fid):
             "p_away": pred["p_away"], "home_xg": pred["home_xg"],
             "away_xg": pred["away_xg"],
             "grid": json.loads(pred["score_grid"]),
+            "derived": derived_stats(json.loads(pred["score_grid"])),
             "notes": pred["notes"], "partial_data": bool(pred["partial_data"]),
             "home_lineup": lineup_detail(conn, book, pred["home_lineup"], as_of),
             "away_lineup": lineup_detail(conn, book, pred["away_lineup"], as_of),

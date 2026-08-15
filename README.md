@@ -45,6 +45,7 @@ run unattended to be worth anything — see below.
 - **Gameweek view** — each card reads in three parts: the **result** probability as the headline (this is the prediction), the **market** as three outlined boxes in the same columns (decimal price, implied %, drift since the opening line), and the **scoreline distribution** as the top five scorelines. The single most likely scoreline is deliberately *not* stated on its own — at 11-15% it is the highest of a crowded field, not a call, and headlining it overstated the model's confidence. Plus xG, lineup mode badge (Provisional / Final / Manual) and partial-data warnings.
 - **Match page** (any fixture card is a link) — the same three parts, then the full scoreline heatmap, position-grouped lineups on a pitch, teamsheet (manager, derived preferred formation, tactical traits), summer arrivals, factor list for that specific prediction, and prediction history.
 - **Manual lineup (Mode 3)** — "edit XI" on any fixture: pick exactly 11 per side (or leave one side untouched). Locks the fixture to manual — automatic rebuilds skip it until you hit "reset to auto".
+- **Derived match stats (Tier 1)** — each match page carries a "Goals & scoring patterns" card: chance of 3+ goals, both teams scoring, a clean sheet either side, expected total goals, and the full total-goals distribution. These are **sums over regions of the same scoreline grid** the result probabilities come from — nothing extra is fitted, so they inherit the goals model's calibration exactly and can never disagree with the scorelines shown beside them. Gameweek cards carry the same three headline figures as chips. Backtested, see below.
 - **/performance** — the single detail page: headline numbers, how the model works, layer-by-layer backtest, settled experiments, calibration, provisional-vs-final drift, the scoreline audit, the 4+ goal caveat, known limitations, situational-records findings, data sources and gaps, and the data-pull log. Linked from the header of every page and from a one-line footer on the gameweek view.
 
 The accuracy figures deliberately do **not** appear on the gameweek or match pages. They used to open the gameweek view as four stat tiles, which asked a first-time visitor to weigh the model's limitations before looking at a single prediction. Nothing was softened in moving them — the detail page carries more than it did before, not less.
@@ -116,6 +117,17 @@ Two things worth knowing about these numbers:
 - **The biggest single gain was a bug fix, not a new feature.** Teams with only one or two matches in the training window were fitting to the parameter boundary and pricing some fixtures at absurd extremes — one early-season Sunderland fixture alone carried over 3% of the whole season's log-loss. Rating shrinkage fixes this boundary case directly.
 - **Do not read 50%+ into any of this.** The market itself only manages 49.5% here. Every variant above was scored once against this holdout and kept or discarded — none were iterated against it to push the number up.
 
+### Derived match stats (Tier 1), same holdout
+
+`python scripts/derived_backtest.py` scores the grid-derived stats with the same walk-forward discipline as the main pass. Both are binary, so the reference points are the base rate and always calling the majority class, not 33%.
+
+| stat | happened | accuracy | vs always-majority | Brier ↓ | log-loss ↓ |
+|---|---|---|---|---|---|
+| 3 or more goals | 55.0% | 58.2% | +3.2pp | 0.2436 (base rate 0.2475) | 0.6805 (0.6881) |
+| Both teams score | 56.1% | 58.4% | +2.4pp | 0.2422 (base rate 0.2463) | 0.6774 (0.6858) |
+
+**Real, but small.** Both beat the honest floor — always predicting the base rate — on every measure. Neither is a large edge: these are near-even events, and a couple of points over "guess the common answer every week" is what a grid-derived number earns. Both also run slightly high (+1.7pp and +2.1pp), the same low-scoring-season effect as the 4+ goal figure: 2025-26 averaged 2.75 goals a match against 3.02 across the training seasons.
+
 ### Is 1-1 dominating the grid? (audited, no)
 
 `python scripts/scoreline_audit.py -n 20` samples fixtures across the range of expected goals and prints the watched cells, the actual top scorelines, and the gap to second. Across 20 fixtures the top scoreline averages **12.6%** (range 9.6-15.2%) with a mean **3.7pp** gap to second, and it correctly yields to 2-0 in mismatches — ordinary Poisson behaviour, nothing running away.
@@ -147,10 +159,12 @@ Genuinely unbeaten in 55 — and still not usable: Liverpool are 74/74 and Leice
 backend/   db.py (schema), predict.py (engine), app.py (Flask),
            market.py (overround removal, blend, odds snapshot history)
 models/    config (settled settings), dixon_coles, player_ratings, fatigue,
-           lineup, travel, style, formation, situational, backtest, evaluate
+           lineup, travel, style, formation, situational, backtest, evaluate,
+           derived (grid-derived match stats)
 scripts/   data pulls, refresh_week, rebuild_confirmed, pull_odds (scheduled),
            backtests, sweeps, accuracy_pass, situational_report,
-           pull_odds_history, scoreline_audit, tail_check
+           pull_odds_history, scoreline_audit, tail_check,
+           derived_backtest
 frontend/  index.html (gameweek), match.html (fixture detail), performance.html
 data/      prem.db, raw CSVs/JSON cache, backtests/, ca_bundle.pem
 tests/     model sanity tests (pytest)
