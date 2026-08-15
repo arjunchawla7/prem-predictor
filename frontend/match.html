@@ -326,6 +326,8 @@
 <header><div class="hwrap">
   <div class="logo">Prem<span>Predictor</span></div>
   <a class="back" href="/">← all fixtures</a>
+  <span style="flex:1"></span>
+  <a class="back" href="/performance">Model performance &amp; methodology →</a>
 </div></header>
 <main id="main">loading…</main>
 <script>
@@ -508,9 +510,8 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
     const bigger = p.home_xg >= p.away_xg ? d.home.name : d.away.name;
     html += `<div class="rout">
       <b>${pct(rout)}</b> chance a side scores 4 or more
-      <span class="fdet">Most likely if it happens: ${bigger}. Real matches did
-      this 13.9% of the time over 2022-26. <b>This figure may currently run
-      high</b> — <a href="/performance#tail">see why</a>.</span></div>`;
+      <span class="fdet">Most likely if it happens: ${bigger}. This figure may
+      currently run high — <a href="/performance#tail">why</a>.</span></div>`;
     if (p.partial_data || p.notes)
       html += `<div class="warnrow">${p.partial_data ? '⚠ partial data. ' : ''}
         ${p.notes || ''}</div>`;

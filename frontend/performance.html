@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Prem Predictor — Model Performance</title>
+<title>Prem Predictor — Model Performance &amp; Methodology</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
@@ -15,7 +15,7 @@
   body { margin:0; background:var(--bg); color:var(--ink);
          font:14px/1.55 "Inter", system-ui, sans-serif; }
   header { background:var(--card); border-bottom:1px solid var(--line);
-           padding:12px 20px; position:sticky; top:0; }
+           padding:12px 20px; position:sticky; top:0; z-index:5; }
   .hwrap { max-width:900px; margin:0 auto; display:flex; gap:16px;
            align-items:baseline; }
   .logo { font-weight:800; font-size:17px; letter-spacing:-.3px; }
@@ -27,8 +27,12 @@
   .card { background:var(--card); border:1px solid var(--line);
           border-radius:12px; box-shadow:var(--shadow);
           padding:16px 18px; margin-bottom:14px; overflow-x:auto; }
+  h1 { font-size:22px; letter-spacing:-.5px; margin:0 0 6px; }
   h2 { font-size:15px; margin:0 0 10px; letter-spacing:-.2px; }
+  h3 { font-size:13px; margin:16px 0 6px; color:var(--ink2);
+       text-transform:uppercase; letter-spacing:.5px; }
   p { color:var(--ink2); }
+  a { color:var(--home); text-decoration:none; }
   table { border-collapse:collapse; width:100%; font-size:13.5px; }
   th,td { text-align:left; padding:6px 12px 6px 0;
           border-bottom:1px solid var(--line); }
@@ -42,6 +46,30 @@
             vertical-align:middle; border-radius:2px; }
   .calbar.actual { background:#2eb8a5; }
   ul { color:var(--ink2); }
+  li { margin-bottom:5px; }
+
+  /* The four headline numbers used to open the gameweek page, where they
+     asked a first-time visitor to weigh the model's limits before seeing a
+     single prediction. They belong here, above the evidence for them. */
+  .statbar { display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+             margin-top:14px; }
+  @media (max-width:700px){ .statbar { grid-template-columns:repeat(2,1fr); } }
+  .stat { background:var(--bg); border:1px solid var(--line);
+          border-radius:10px; padding:9px 12px; }
+  .stat .k { font-size:10.5px; font-weight:700; color:var(--ink3);
+             text-transform:uppercase; letter-spacing:.5px; }
+  .stat .v { font-size:20px; font-weight:800; letter-spacing:-.5px;
+             color:var(--ink); line-height:1.25; }
+  .stat .v.good { color:var(--good); }
+  .stat .s { font-size:11px; color:var(--ink3); }
+
+  .toc { display:flex; flex-wrap:wrap; gap:6px 8px; margin-top:12px; }
+  .toc a { font-size:12px; color:var(--ink2); background:var(--bg);
+           border:1px solid var(--line); border-radius:999px;
+           padding:3px 10px; }
+  .toc a:hover { color:var(--ink); border-color:var(--ink3); }
+  /* sticky header would otherwise swallow the top of a jumped-to section */
+  .card[id] { scroll-margin-top:64px; }
 </style>
 </head>
 <body>
@@ -51,18 +79,84 @@
 </div></header>
 <main id="main">loading…</main>
 <script>
+const SECTIONS = [
+  ['numbers', 'Headline numbers'], ['how', 'How it works'],
+  ['backtest', 'Backtest'], ['settled', 'Settled experiments'],
+  ['calibration', 'Calibration'], ['prov', 'Provisional vs final'],
+  ['scorelines', 'Scoreline audit'], ['tail', 'Big scorelines'],
+  ['limits', 'Known limitations'], ['situational', 'Situational records'],
+  ['sources', 'Data sources &amp; gaps'], ['pulls', 'Recent data pulls'],
+];
+
 fetch('/api/performance').then(r => r.json()).then(d => {
-  let html = `<div class="card">
-  <h2>What the model has actually earned</h2>
-  <p>All numbers are from a walk-forward backtest of the full 2025-26 season
-  (model refit weekly on past matches only, never shuffled). Uniform guessing
-  scores: accuracy 33%, Brier 0.667, log-loss 1.099. A typical bookmaker sits
-  around 53-55% accuracy — this model does not beat the market and is not
-  meant to.</p></div>`;
+  const base = d.backtests && d.backtests.length ? d.backtests[0] : null;
+  const shipping = (d.backtests || []).find(x => !/style/i.test(x.label)) || base;
+
+  let html = `<div class="card" id="numbers">
+  <h1>Model performance &amp; methodology</h1>
+  <p>Everything about how well this model does, and where it falls short, in
+  one place. All numbers come from a walk-forward backtest of the full 2025-26
+  season — refit weekly, only ever trained on matches already played, never
+  shuffled.</p>
+  ${shipping ? `<div class="statbar">
+    <div class="stat"><div class="k">Called correctly</div>
+      <div class="v good">${(100 * shipping.accuracy).toFixed(1)}%</div>
+      <div class="s">home, draw or away</div></div>
+    <div class="stat"><div class="k">Coin-toss floor</div>
+      <div class="v">33%</div><div class="s">what guessing would give</div></div>
+    <div class="stat"><div class="k">Bookmakers</div>
+      <div class="v">49.5%</div><div class="s">closing odds, same matches</div></div>
+    <div class="stat"><div class="k">Brier score</div>
+      <div class="v">${shipping.brier.toFixed(3)}</div>
+      <div class="s">calibration, lower is better</div></div>
+  </div>` : ''}
+  <p style="margin-top:12px">Uniform guessing scores accuracy 33%, Brier 0.667,
+  log-loss 1.099. This model does not beat the market and is not meant to:
+  bookmakers' closing odds score 49.5% on the same 380 matches, which is the
+  practical ceiling for this kind of model rather than a number to chase.
+  These are probabilities, not forecasts — a 60% pick is meant to lose 4 times
+  in 10.</p>
+  <div class="toc">${SECTIONS.map(([id, label]) =>
+    `<a href="#${id}">${label}</a>`).join('')}</div>
+  </div>`;
+
+  html += `<div class="card" id="how"><h2>How the model works</h2>
+  <p><strong>Layer 1 — Dixon-Coles.</strong> Per-team attack/defence strengths,
+  home advantage and a low-score correction, fitted by maximum likelihood with
+  exponential time-decay weighting. A full scoreline grid comes out of it via
+  Poisson; the win/draw/loss probabilities are sums over that grid. Fitted
+  against <strong>xG rather than goals</strong>, with ratings
+  <strong>shrunk toward the league average</strong> — both settled by backtest
+  below. Settings live in one config shared by the live predictor and every
+  backtest, so this page always describes the model that is actually
+  predicting.</p>
+  <h3>Adjustments layered on top</h3>
+  <ul>
+   <li><strong>Player ratings</strong> — previous-season per-90s, z-scored
+   within position group, quintile tiers 1-5. Low-minute players get a flagged
+   provisional average, never an invented number.</li>
+   <li><strong>Fatigue</strong> — decayed sum of recent league minutes → 0-100,
+   discounting a player's rating by up to 10%.</li>
+   <li><strong>Lineup weighting</strong> — a named XI's mean effective rating
+   against the team's typical lineup, capped at ±8% on expected goals.</li>
+   <li><strong>Travel and congestion</strong> — haversine distance (up to 3%)
+   and a short-rest comparison (2%).</li>
+   <li><strong>Layer 2 style</strong> — k-means style buckets from shot
+   proxies, with the matchup adjustment learned from Layer-1 <em>residuals</em>
+   so it cannot simply rediscover "good beats bad". Capped at ±0.15 xG and
+   <strong>currently switched off</strong>, see below.</li>
+   <li><strong>Model + market blend</strong> — reported as a separate output
+   and never folded into the model's own number, because tracking unassisted
+   accuracy only means something if the model's number stays its own.</li>
+  </ul>
+  <p class="cnt">Team profiles (preferred formation, tactical traits) are
+  derived from real starting XIs and league percentile ranks. No possession or
+  pressing data exists in this database, so no claim is made about either.</p>
+  </div>`;
 
   if (d.backtests.length) {
-    const base = d.backtests[0];
-    html += `<div class="card"><h2>Layer-by-layer backtest (2025-26)</h2>
+    html += `<div class="card" id="backtest">
+    <h2>Layer-by-layer backtest (2025-26)</h2>
     <table><tr><th>variant</th><th>accuracy</th><th>Brier ↓</th>
     <th>log-loss ↓</th><th>verdict vs Layer 1</th></tr>` +
     d.backtests.map((b, i) => {
@@ -78,9 +172,50 @@ fetch('/api/performance').then(r => r.json()).then(d => {
         <td>${b.brier.toFixed(4)}</td><td>${b.logloss.toFixed(4)}</td>
         <td>${verdict}</td></tr>`;
     }).join('') + '</table></div>';
+  }
 
-    html += `<div class="card"><h2>Calibration — home-win probability
-    (${base.label})</h2>
+  // Static because these variants are settled and no longer refit on every
+  // run — they are the record of what was tried, kept or thrown out.
+  html += `<div class="card" id="settled">
+  <h2>Settled experiments (walk-forward, 2025-26)</h2>
+  <p>Reproduce with <code>scripts/accuracy_pass.py</code>. Each variant was
+  scored <em>once</em> against this holdout and kept or discarded — none were
+  iterated against it to push the number up.</p>
+  <table>
+   <tr><th>variant</th><th>accuracy</th><th>Brier ↓</th><th>log-loss ↓</th>
+       <th>verdict</th></tr>
+   <tr><td>Layer 1, goals target, unshrunk (original)</td><td>46.6%</td>
+       <td>0.6188</td><td>1.0607</td><td class="cnt">—</td></tr>
+   <tr><td>+ rating shrinkage</td><td>47.1%</td><td>0.6151</td><td>1.0248</td>
+       <td class="good">kept</td></tr>
+   <tr><td>+ xG fitting target</td><td>47.9%</td><td>0.6150</td><td>1.0247</td>
+       <td class="good">kept</td></tr>
+   <tr><td>both together</td><td>48.7%</td><td>0.6142</td><td>1.0237</td>
+       <td class="good">kept</td></tr>
+   <tr><td><strong>+ draw correction (ships now)</strong></td>
+       <td><strong>48.7%</strong></td><td><strong>0.6123</strong></td>
+       <td><strong>1.0203</strong></td><td class="good">kept</td></tr>
+   <tr><td>+ Layer 2 style</td><td>46.6%</td><td>0.6169</td><td>1.0273</td>
+       <td class="bad">switched off</td></tr>
+   <tr><td><em>market closing odds alone</em></td><td><em>49.5%</em></td>
+       <td><em>0.6077</em></td><td><em>1.0118</em></td>
+       <td class="cnt">reference, not a model</td></tr>
+   <tr><td>model + market 50/50 blend</td><td>49.5%</td><td>0.6085</td>
+       <td>1.0148</td><td class="good">kept, labelled separately</td></tr>
+  </table>
+  <p style="margin-top:12px"><strong>The biggest single gain was a bug fix, not
+  a new feature.</strong> Teams with only one or two matches in the training
+  window were fitting to the parameter boundary and pricing some fixtures at
+  absurd extremes — one early-season Sunderland fixture alone carried over 3%
+  of the whole season's log-loss. Rating shrinkage fixes that boundary case
+  directly.</p>
+  <p class="cnt">Several time-decay rates, training-window lengths (up to 7
+  seasons) and goals/xG blend ratios were also swept and discarded — none beat
+  the settings above.</p></div>`;
+
+  if (base) {
+    html += `<div class="card" id="calibration">
+    <h2>Calibration — home-win probability (${base.label})</h2>
     <table><tr><th>predicted bucket</th><th>n</th><th>predicted</th>
     <th>actual</th><th></th></tr>` +
     base.calibration.map(c => `<tr><td>${c.bucket}</td><td>${c.n}</td>
@@ -89,11 +224,11 @@ fetch('/api/performance').then(r => r.json()).then(d => {
       <td><span class="calbar" style="width:${150 * c.predicted}px"></span><br>
       <span class="calbar actual" style="width:${150 * c.actual}px"></span></td>
       </tr>`).join('') +
-    `</table><p class="cnt">blue = predicted frequency, teal = actual.
-    Matching lengths = well calibrated.</p></div>`;
+    `</table><p class="cnt">Blue = predicted frequency, teal = actual.
+    Matching lengths mean the stated probability is doing its job.</p></div>`;
   }
 
-  html += `<div class="card"><h2>Provisional vs final predictions</h2>`;
+  html += `<div class="card" id="prov"><h2>Provisional vs final predictions</h2>`;
   if (d.prov_vs_final) {
     html += `<p>${d.prov_vs_final.fixtures} fixtures have both a provisional
     (ideal XI) and final (confirmed XI) prediction. Average home-win
@@ -102,15 +237,39 @@ fetch('/api/performance').then(r => r.json()).then(d => {
     two-stage rebuild isn't earning its complexity.</p>`;
   } else {
     html += `<p class="cnt">No fixture has both yet — accumulates once the
-    season starts and Mode 2 rebuilds run.</p>`;
+    season starts and confirmed-lineup rebuilds run.</p>`;
   }
   html += '</div>';
+
+  html += `<div class="card" id="scorelines">
+  <h2>Is one scoreline dominating the grid?</h2>
+  <p>1-1 leads the scoreline distribution for most fixtures, which invites the
+  suspicion that something is forcing it. Audited with
+  <code>scripts/scoreline_audit.py</code> across 20 fixtures spanning the range
+  of expected goals: <strong>no</strong>.</p>
+  <table>
+   <tr><th>measure</th><th>result</th></tr>
+   <tr><td>top scoreline probability</td>
+       <td>mean <strong>12.6%</strong> (range 9.6-15.2%)</td></tr>
+   <tr><td>gap to the second-most-likely</td><td>mean 3.7pp (0.2-5.7pp)</td></tr>
+   <tr><td>top scoreline in mismatches</td>
+       <td>correctly yields to 2-0</td></tr>
+  </table>
+  <p style="margin-top:12px">Against plain Poisson on the same expected goals,
+  the grid lifts 1-1 by ×1.20. That decomposes exactly into the fitted draw
+  multiplier (1.175, applied to <em>every</em> drawn scoreline, not 1-1
+  specifically) and the Dixon-Coles low-score correction — both validated for
+  calibration above. It changes which scoreline leads in 2 of 20 fixtures, both
+  dead heats inside 0.2pp.</p>
+  <p>This is ordinary Poisson behaviour: no single scoreline is worth much on
+  its own, which is why the fixture pages show the distribution rather than
+  headlining one scoreline as a call.</p></div>`;
 
   html += `<div class="card" id="tail"><h2>Why big scorelines may read high</h2>
   <p>The match pages give a chance that one side scores four or more. That
   figure is currently <strong>too generous</strong>, and it is worth knowing
   why before you lean on it.</p>
-  <table class="plain" style="margin:10px 0">
+  <table style="margin:10px 0">
    <tr><th>4+ goal side</th><th>rate</th></tr>
    <tr><td>2022-23</td><td>15.5%</td></tr>
    <tr><td>2023-24</td><td>18.2%</td></tr>
@@ -137,39 +296,93 @@ fetch('/api/performance').then(r => r.json()).then(d => {
   2026-27 has enough matches to show whether the low-scoring pattern is real
   or was a one-off.</p></div>`;
 
-  html += `<div class="card"><h2>Known limitations (deliberately not hidden)</h2>
+  html += `<div class="card" id="limits">
+  <h2>Known limitations (deliberately not hidden)</h2>
   <ul>
-   <li>Lineup/fatigue/travel weighting did <strong>not</strong> improve
-   calibration on 2025-26; kept for what-if analysis.</li>
-   <li>Layer 2 style adjustment is <strong>switched off</strong>. It used to
-   help marginally, but against the corrected Layer 1 it costs accuracy
-   (.466 vs .487) — most likely it was compensating for the unshrunk ratings
-   and now double-counts a correction Layer 1 already makes.</li>
    <li><strong>A draw is never the model's top pick</strong> — and the draw
-   correction does not change that. The drawn scorelines now carry a fitted
-   boost plus an out-of-sample scale, which lifted the mean predicted draw from
-   .234 to .258 against an actual .274 and improved Brier by .0019. But the
-   nearest a draw comes to leading is 6.6 points, and inflating far enough to
-   close that makes calibration worse, so roughly a quarter of matches still
-   cannot be called correctly by argmax. The correction makes the
-   probabilities more honest; it does not raise the hit-rate.</li>
-   <li>Best pure-model accuracy on the 2025-26 holdout is <strong>48.7%</strong>.
-   For scale, bookmakers' closing odds — the strongest public predictor
-   available — score 49.5% on the same 380 matches. Treat 50%+ unassisted
-   claims with suspicion.</li>
-   <li>Situational "records" (e.g. a team's half-time-lead record) are measured
-   but <strong>none feeds a prediction</strong>: none beat its league base rate
-   once team strength was controlled for, and half-time state is not knowable
-   before kickoff regardless.</li>
-   <li>Fatigue uses league minutes only — European/cup midweeks are invisible.</li>
-   <li>No true defensive stats; defender ratings proxy from team goals
-   conceded + xG buildup.</li>
-   <li>Promoted teams start on a "weakest-3 average" prior until they build
-   top-flight history.</li>
+   correction does not change that. Drawn scorelines now carry a fitted boost
+   plus an out-of-sample scale, which lifted the mean predicted draw from .234
+   to .258 against an actual .274 and improved Brier by .0019. But the nearest
+   a draw comes to leading is 6.6 points, and inflating far enough to close
+   that makes calibration worse, so roughly a quarter of matches still cannot
+   be called correctly by argmax. The correction makes the probabilities more
+   honest; it does not raise the hit-rate.</li>
+   <li><strong>Lineup, fatigue and travel weighting did not improve
+   calibration</strong> on 2025-26. Kept for what-if analysis and clearly
+   labelled, not because it is earning its keep.</li>
+   <li><strong>Layer 2 style adjustment is switched off.</strong> It used to
+   help marginally, but against the corrected Layer 1 it costs accuracy (.466
+   vs .487) — most likely it was compensating for the unshrunk ratings and now
+   double-counts a correction Layer 1 already makes.</li>
+   <li><strong>Best pure-model accuracy is 48.7%.</strong> For scale,
+   bookmakers' closing odds — the strongest public predictor available — score
+   49.5% on the same 380 matches. Treat 50%+ unassisted claims with
+   suspicion.</li>
+   <li><strong>No true defensive stats.</strong> Defender ratings are a proxy
+   built from team goals conceded plus xG buildup, because no source here
+   carries tackles or interceptions.</li>
+   <li><strong>Fatigue uses league minutes only</strong> — European and cup
+   midweeks are invisible, so fatigue is understated for teams in Europe.</li>
+   <li><strong>Promoted teams are rated roughly.</strong> A promoted side is
+   projected from its Championship form where that exists, and otherwise from a
+   generic "weakest-3 average" prior until top-flight history accumulates.
+   Cross-league projection beats the generic prior on both axes but is
+   <em>systematically optimistic about defence</em> — promoted teams concede
+   more than it expects. With only three clubs to test against, that bias is
+   documented rather than fitted out. Championship results are never in the
+   training pool; that was tested and is clearly worse (.4763 vs .4868).</li>
+   <li><strong>Situational "records" feed nothing</strong> — see below.</li>
   </ul></div>`;
 
+  html += `<div class="card" id="situational">
+  <h2>Situational records — measured, none qualify</h2>
+  <p>Claimed patterns ("this team always wins when…") are measured properly
+  rather than trusted, with <code>scripts/situational_report.py</code>. Worked
+  example — Man Utd leading at half-time at Old Trafford, over 2019-2026:</p>
+  <table>
+   <tr><th></th><th>n</th><th>rate</th><th>league (other clubs)</th>
+       <th>lift</th><th>p</th></tr>
+   <tr><td>win</td><td>55</td><td>81.8%</td><td>75.3%</td><td>+6.5pp</td>
+       <td>0.35</td></tr>
+   <tr><td>not lose</td><td>55</td><td><strong>100%</strong></td><td>92.0%</td>
+       <td>+8.0pp</td><td>0.02</td></tr>
+  </table>
+  <p style="margin-top:12px">Genuinely unbeaten in 55 — and still not usable.
+  Liverpool are 74/74 and Leicester 26/26 on the same measure, the league base
+  rate is already 92%, and a half-time scoreline is not knowable before
+  kickoff anyway.</p>
+  <p>The test also requires beating <em>the model's own expectation</em>, not
+  just the league average. Arsenal's home London-derby record looks like
+  +27.9pp (p=0.001) against the league rate, but is +0.0pp (z=−0.3) once
+  Arsenal's rating is accounted for. <strong>No situational pattern currently
+  qualifies as a model input.</strong></p></div>`;
+
+  html += `<div class="card" id="sources"><h2>Data sources &amp; gaps</h2>
+  <ul>
+   <li><strong>Results, shots, cards</strong> — football-data.co.uk, via its
+   GitHub mirror (same CSVs, same schema as the origin site).</li>
+   <li><strong>Historical closing odds</strong> — football-data.co.uk direct,
+   the only source here carrying odds and therefore the only thing that can
+   back the market comparison. Seasons 2019-20 to 2025-26, all 2660 matches
+   priced.</li>
+   <li><strong>xG, player minutes, rosters, position codes</strong> —
+   understat.com.</li>
+   <li><strong>Fixtures, gameweeks, confirmed lineups, squads, managers,
+   crests, player photos</strong> — the official Premier League API.</li>
+   <li><strong>Current match odds</strong> — the-odds-api.com, refreshed as
+   kickoff approaches and stored as a series of snapshots so drift from the
+   opening line is visible. Optional; without a key the pages say so.</li>
+   <li><strong>Championship data</strong> — football-data.co.uk E1 results,
+   used only to seed promoted teams the top-flight fit has never seen. Carries
+   no xG, no lineups and no player data, so a promoted side's formation and
+   player ratings still fall back to season averages.</li>
+  </ul>
+  <p class="cnt">Gaps are flagged in-app rather than hidden: no cup or European
+  minutes, no true defensive stats, rough promoted-team ratings, and no
+  possession or pressing data anywhere in this database.</p></div>`;
+
   if (d.pull_log.length) {
-    html += `<div class="card"><h2>Recent data pulls</h2><table>
+    html += `<div class="card" id="pulls"><h2>Recent data pulls</h2><table>
     <tr><th>time (UTC)</th><th>source</th><th>ok</th><th>detail</th></tr>` +
     d.pull_log.map(l => `<tr><td>${l.ts.slice(0, 16)}</td><td>${l.source}</td>
       <td>${l.ok ? '<span class="good">ok</span>'
@@ -177,6 +390,11 @@ fetch('/api/performance').then(r => r.json()).then(d => {
       <td class="cnt">${l.detail || ''}</td></tr>`).join('') + '</table></div>';
   }
   document.getElementById('main').innerHTML = html;
+  // A #hash arriving before this render had nothing to scroll to yet.
+  if (location.hash) {
+    const el = document.querySelector(location.hash);
+    if (el) el.scrollIntoView();
+  }
 });
 </script>
 </body>

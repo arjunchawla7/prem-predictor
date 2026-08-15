@@ -45,7 +45,9 @@ run unattended to be worth anything — see below.
 - **Gameweek view** — each card reads in three parts: the **result** probability as the headline (this is the prediction), the **market** as three outlined boxes in the same columns (decimal price, implied %, drift since the opening line), and the **scoreline distribution** as the top five scorelines. The single most likely scoreline is deliberately *not* stated on its own — at 11-15% it is the highest of a crowded field, not a call, and headlining it overstated the model's confidence. Plus xG, lineup mode badge (Provisional / Final / Manual) and partial-data warnings.
 - **Match page** (any fixture card is a link) — the same three parts, then the full scoreline heatmap, position-grouped lineups on a pitch, teamsheet (manager, derived preferred formation, tactical traits), summer arrivals, factor list for that specific prediction, and prediction history.
 - **Manual lineup (Mode 3)** — "edit XI" on any fixture: pick exactly 11 per side (or leave one side untouched). Locks the fixture to manual — automatic rebuilds skip it until you hit "reset to auto".
-- **/performance** — layer-by-layer backtest results, calibration table, provisional-vs-final drift tracking, data-pull log, known limitations.
+- **/performance** — the single detail page: headline numbers, how the model works, layer-by-layer backtest, settled experiments, calibration, provisional-vs-final drift, the scoreline audit, the 4+ goal caveat, known limitations, situational-records findings, data sources and gaps, and the data-pull log. Linked from the header of every page and from a one-line footer on the gameweek view.
+
+The accuracy figures deliberately do **not** appear on the gameweek or match pages. They used to open the gameweek view as four stat tiles, which asked a first-time visitor to weigh the model's limitations before looking at a single prediction. Nothing was softened in moving them — the detail page carries more than it did before, not less.
 
 ## Market odds (optional)
 

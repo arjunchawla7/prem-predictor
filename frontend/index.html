@@ -39,20 +39,9 @@
   .gw-pill:hover { border-color:var(--line2); color:var(--ink); }
   .gw-pill.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
 
-  .context { max-width:1020px; margin:14px auto 0; padding:0 20px;
-             font-size:12.5px; color:var(--ink2); }
-  .statbar { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  @media (max-width:700px){ .statbar { grid-template-columns:repeat(2,1fr); } }
-  .stat { background:var(--card); border:1px solid var(--line);
-          border-radius:10px; padding:9px 12px; }
-  .stat .k { font-size:10.5px; font-weight:700; color:var(--ink3);
-             text-transform:uppercase; letter-spacing:.5px; }
-  .stat .v { font-size:20px; font-weight:800; letter-spacing:-.5px;
-             color:var(--ink); line-height:1.25; }
-  .stat .v.good { color:#5ad19a; }
-  .stat .s { font-size:11px; color:var(--ink3); }
-  .ctx-note { margin:9px 0 0; color:var(--ink3); max-width:72ch; }
-  main { max-width:1020px; margin:10px auto 40px; padding:0 20px;
+  footer { max-width:1020px; margin:0 auto 40px; padding:0 20px;
+           font-size:12px; color:var(--ink3); }
+  main { max-width:1020px; margin:16px auto 22px; padding:0 20px;
          display:grid; grid-template-columns:repeat(auto-fill,minmax(460px,1fr));
          gap:14px; }
   @media (max-width:1000px){ main { grid-template-columns:1fr; } }
@@ -201,20 +190,22 @@
   <div class="h-top">
     <div class="logo">Prem<span>Predictor</span></div>
     <div class="spacer"></div>
-    <a class="perf" href="/performance">Model performance →</a>
+    <a class="perf" href="/performance">Model performance &amp; methodology →</a>
   </div>
   <div class="gw-strip" id="gw-strip"></div>
 </header>
 
-<div class="context">
-  <div class="statbar" id="statbar"></div>
-  <p class="ctx-note">Backtested across all 380 matches of 2025-26, refitting
-  each week and only ever training on matches already played. These are
-  probabilities, not forecasts — a 60% pick is meant to lose 4 times in 10.
-  <a href="/performance">See what it gets wrong →</a></p>
-</div>
-
 <main id="fixtures">loading…</main>
+
+<!-- The honesty lives on /performance in full. It used to open the page as
+     four stat tiles and a paragraph of backtest framing, which asked a first-
+     time visitor to absorb the model's limitations before they had looked at
+     a single prediction. One line at the foot, and the header link, keep it
+     one click away without competing with the fixtures for attention. -->
+<footer>
+  These are probabilities, not forecasts — a 60% pick is meant to lose 4 times
+  in 10. <a href="/performance">Model performance &amp; methodology →</a>
+</footer>
 
 
 
@@ -401,26 +392,6 @@ function render(data) {
     </a>`;
   }).join('');
 }
-
-// Headline numbers come from the same backtest the performance page reports,
-// so they cannot drift from the model actually running. This used to be a
-// hardcoded "~47%", which had been wrong since the model improved.
-fetch('/api/performance').then(r => r.json()).then(d => {
-  // the shipping model is Layer 1; the style variant is kept only as a
-  // comparison and is switched off
-  const b = (d.backtests || []).find(x => !/style/i.test(x.label));
-  if (!b) return;
-  const stat = (k, v, s, good) =>
-    `<div class="stat"><div class="k">${k}</div>
-     <div class="v${good ? ' good' : ''}">${v}</div>
-     <div class="s">${s}</div></div>`;
-  document.getElementById('statbar').innerHTML =
-    stat('Called correctly', (100 * b.accuracy).toFixed(1) + '%',
-         'home, draw or away', true) +
-    stat('Coin-toss floor', '33%', 'what guessing would give') +
-    stat('Bookmakers', '49.5%', 'closing odds, same matches') +
-    stat('Brier score', b.brier.toFixed(3), 'calibration, lower is better');
-}).catch(() => {});
 
 fetch('/api/gameweek/1').then(r => r.json())
   .then(d => loadGw(d.next_gameweek || 1));
