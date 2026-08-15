@@ -114,9 +114,9 @@
   .meta .sc { color:var(--ink2); }
   .meta .sc b { color:var(--ink); font-weight:700; }
 
-  /* Three separate claims, ranked by how much confidence each deserves:
-     the result probability is the prediction, the single most likely
-     scoreline is a curiosity, and the distribution is the honest picture. */
+  /* Two separate claims, ranked by how much confidence each deserves: the
+     result probability is the prediction, and the distribution behind it
+     shows how little any single scoreline is worth on its own. */
   .slab { font-size:10.5px; font-weight:700; color:var(--ink3);
           text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
   .sect { margin-top:11px; padding-top:10px; border-top:1px solid var(--line); }
@@ -126,10 +126,6 @@
   .headline.h { color:var(--home); }
   .headline.d { color:#2eb8a5; }
   .headline.a { color:#f97b3d; }
-  .single { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-  .single .sv { font-size:15px; font-weight:700; color:var(--ink2);
-                font-variant-numeric:tabular-nums; }
-  .single .sn { font-size:11.5px; color:var(--ink3); }
   .dist { display:flex; flex-wrap:wrap; gap:6px; }
   .dist .d1 { font-size:12px; color:var(--ink2); background:var(--bg);
               border:1px solid var(--line); border-radius:6px; padding:3px 8px;
@@ -347,11 +343,10 @@ function render(data) {
     let mid = `<div class="provtag" style="margin-bottom:6px">no prediction yet
       — run refresh_week.py</div>`;
     if (p) {
-      // Three sections, ranked by how much weight each deserves. The result
-      // probability is the actual prediction and carries the visual weight;
-      // the single most likely scoreline is only ever ~12-15% likely, so it
-      // is shown small and labelled for what it is; the distribution behind
-      // it makes plain that the top scoreline barely leads the field.
+      // The result probability is the actual prediction and carries the
+      // visual weight. The distribution follows, which makes plain that the
+      // leading scoreline — only ever ~12-15% likely — barely leads the field
+      // and is not worth stating as a call on its own.
       const call = resultCall(p, f.home.name, f.away.name);
       const top = p.top_scores || [];
       mid = `
@@ -371,14 +366,6 @@ function render(data) {
         <div class="a" style="flex:${p.p_away}"></div>
       </div>
       ${marketBoxes(f)}
-      <div class="sect">
-        <div class="slab">Most likely single scoreline</div>
-        <div class="single">
-          <span class="sv">${top.length ? top[0].score : '—'}</span>
-          <span class="sn">${top.length ? pct1(top[0].p) : ''} — highest of many
-          close options, not a confident call</span>
-        </div>
-      </div>
       <div class="sect">
         <div class="slab">Scoreline distribution</div>
         <div class="dist">${top.slice(0, 5).map(s =>

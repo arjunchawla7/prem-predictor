@@ -80,9 +80,9 @@
   .price.h { background:var(--home-t); } .price.h .val { color:var(--home); }
   .price.d { background:var(--draw-t); } .price.d .val { color:#2eb8a5; }
   .price.a { background:var(--away-t); } .price.a .val { color:#f97b3d; }
-  /* Three separate claims, ranked by how much confidence each deserves —
-     result probability, then the single most likely scoreline, then the
-     distribution it barely leads. Mirrors the gameweek card. */
+  /* Two separate claims, ranked by how much confidence each deserves —
+     the result probability, then the scoreline distribution behind it.
+     Mirrors the gameweek card. */
   .slab { font-size:10.5px; font-weight:700; color:var(--ink3);
           text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
   .hero .block { max-width:520px; margin:16px auto 0; text-align:left;
@@ -92,10 +92,6 @@
   .headline.h { color:var(--home); }
   .headline.d { color:#2eb8a5; }
   .headline.a { color:#f97b3d; }
-  .single { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
-  .single .sv { font-size:19px; font-weight:800; color:var(--ink2);
-                letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
-  .single .sn { font-size:12px; color:var(--ink3); }
   .dist { display:flex; flex-wrap:wrap; gap:7px; }
   .dist .d1 { font-size:12.5px; color:var(--ink2); background:var(--bg);
               border:1px solid var(--line); border-radius:6px; padding:4px 9px;
@@ -476,11 +472,10 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
         ${p ? `<div class="xg">xG ${p.away_xg.toFixed(2)}</div>` : ''}</div>
     </div>`;
   if (p) {
-    // Three sections, ranked by how much weight each deserves. The result
-    // probability is the actual prediction and carries the visual weight; the
-    // single most likely scoreline is only ever ~12-15% likely, so it is shown
-    // small and labelled for what it is; the distribution behind it makes
-    // plain that the top scoreline barely leads the field.
+    // The result probability is the actual prediction and carries the visual
+    // weight. The distribution follows, which makes plain that the leading
+    // scoreline — only ever ~12-15% likely — barely leads the field and is not
+    // worth stating as a call on its own.
     const call = resultCall(p, d.home.name, d.away.name);
     const top = topScores(p.grid, 5);
     html += `<div class="block"><div class="slab">Result</div>
@@ -498,12 +493,6 @@ fetch(`/api/fixture/${fid}`).then(r => r.json()).then(d => {
       ${marketBoxes(d.odds, d.home.name, d.away.name)}</div>`;
 
     html += `<div class="block">
-      <div class="slab">Most likely single scoreline</div>
-      <div class="single"><span class="sv">${top[0].score}</span>
-        <span class="sn">${pct1(top[0].p)} — the highest of many close options,
-        not a confident call. The result above is the prediction.</span></div>
-    </div>
-    <div class="block">
       <div class="slab">Scoreline distribution</div>
       <div class="dist">${top.map(s =>
         `<span class="d1"><b>${s.score}</b> ${pct1(s.p)}</span>`).join('')}</div>

@@ -210,7 +210,7 @@ def pull(conn, args):
     tid = {r_["name"]: r_["id"] for r_ in
            conn.execute("SELECT id, name FROM teams")}
     now = _now().isoformat()
-    n, moved = 0, []
+    n, moved, comparable = 0, [], 0
     for ev in events:
         h = NAME_MAP.get(ev["home_team"], ev["home_team"])
         a = NAME_MAP.get(ev["away_team"], ev["away_team"])
@@ -225,6 +225,7 @@ def pull(conn, args):
         if not prices:
             continue
         prev = previous_snapshot(conn, f["id"])
+        comparable += bool(prev)
         move = describe_move(prev, prices)
         conn.execute(
             """INSERT OR REPLACE INTO market_odds
@@ -246,7 +247,9 @@ def pull(conn, args):
     for m in moved:
         print(f"  moved  {m}")
     if n and not moved:
-        print("  no meaningful movement since the previous snapshot")
+        print("  opening snapshot — nothing to compare against yet"
+              if not comparable else
+              "  no meaningful movement since the previous snapshot")
     return n
 
 
